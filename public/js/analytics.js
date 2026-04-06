@@ -99,6 +99,19 @@ const Analytics = {
   async render(clientId) {
     const main = document.getElementById('mainContent');
     main.innerHTML = '<div style="padding:40px;text-align:center"><div class="spinner"></div> Loading analytics...</div>';
+
+    // Clear cached data when switching clients
+    if (this.clientId !== clientId) {
+      this._cache = {};
+      this._cacheTime = {};
+      this._foV2InitCache = null;
+      this._foV2Cache = null;
+      this._playbookCache = null;
+      this._crmRules = null;
+      this._crmSummary = null;
+      this._crmProcessorRules = null;
+      this._binProfiles = null;
+    }
     this.clientId = clientId;
 
     // Check onboarding status
