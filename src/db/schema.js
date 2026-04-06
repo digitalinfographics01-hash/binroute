@@ -716,6 +716,8 @@ async function initializeDatabase() {
     "ALTER TABLE clients ADD COLUMN uses_cascade INTEGER DEFAULT NULL",
     // Client sticky domain — extracted from sticky_base_url for cascade CSV matching
     "ALTER TABLE clients ADD COLUMN sticky_domain TEXT DEFAULT NULL",
+    // Client min sample size for analytics
+    "ALTER TABLE clients ADD COLUMN min_sample_size INTEGER DEFAULT 30",
     // Subscription features (Layer 2.5) — rebill-specific signals
     "ALTER TABLE tx_features ADD COLUMN consecutive_approvals INTEGER DEFAULT NULL",
     "ALTER TABLE tx_features ADD COLUMN days_since_last_charge REAL DEFAULT NULL",
