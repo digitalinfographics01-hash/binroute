@@ -594,7 +594,7 @@ class DataIngestion {
         stop_after_next_rebill, on_hold, hold_date, order_confirmed,
         parent_id, child_id, is_in_trial, order_subtotal, shipping_total, tax_total,
         c1, c2, c3, affid
-      ) VALUES (${Array(65).fill('?').join(',')})
+      ) VALUES (${Array(68).fill('?').join(',')})
     `, [
       this.clientId, order.order_id, order.customer_id, order.contact_id, order.is_anonymous_decline,
       order.campaign_id, order.gateway_id, order.gateway_descriptor,
@@ -733,7 +733,7 @@ class DataIngestion {
         stop_after_next_rebill, on_hold, hold_date, order_confirmed,
         parent_id, child_id, is_in_trial, order_subtotal, shipping_total, tax_total,
         c1, c2, c3, affid
-      ) VALUES (${Array(65).fill('?').join(',')})
+      ) VALUES (${Array(68).fill('?').join(',')})
     `, [
       this.clientId, order.order_id, order.customer_id, order.contact_id, order.is_anonymous_decline,
       order.campaign_id, order.gateway_id, order.gateway_descriptor,
