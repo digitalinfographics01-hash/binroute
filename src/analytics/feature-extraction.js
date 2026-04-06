@@ -71,6 +71,9 @@ function _loadQualifiedOrders(clientId, incrementalOnly) {
       AND o.is_test = 0 AND o.is_internal_test = 0
       AND o.processing_gateway_id IS NOT NULL
       AND o.cc_first_6 IS NOT NULL
+      AND o.processing_gateway_id NOT IN (
+        SELECT gateway_id FROM gateways WHERE client_id = ${clientId} AND exclude_from_analysis = 1
+      )
       AND ${crmFilter}
       ${incrementalFilter}
     ORDER BY o.customer_id, o.product_group_id, o.derived_cycle, o.derived_attempt
@@ -120,7 +123,7 @@ function _processOrders(clientId, orders) {
     const batch = orders.slice(b, b + BATCH_SIZE);
     const runBatch = db.transaction((rows) => {
       for (const o of rows) {
-        const features = _extractSingleOrder(o, gatewayMap, binMap, initialProcMap, prevDeclineMap);
+        const features = _extractSingleOrder(o, gatewayMap, binMap, initialProcMap, prevDeclineMap, clientId);
         if (!features) continue;
 
         const result = insertStmt.run(
@@ -165,7 +168,7 @@ function _processOrders(clientId, orders) {
 /**
  * Extract features for a single order row.
  */
-function _extractSingleOrder(o, gatewayMap, binMap, initialProcMap, prevDeclineMap) {
+function _extractSingleOrder(o, gatewayMap, binMap, initialProcMap, prevDeclineMap, clientId) {
   // --- LABEL ---
   const outcome = [2, 6, 8].includes(o.order_status) ? 'approved' : 'declined';
 
