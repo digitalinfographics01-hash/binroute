@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BinRoute</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>BinRoute</h1>
+        <p>BIN Routing Optimizer</p>
+      </div>
+
+      <div class="client-selector">
+        <select id="clientSelect">
+          <option value="">Loading clients...</option>
+        </select>
+      </div>
+
+      <nav class="nav">
+        <div class="nav-item active" data-screen="dashboard">
+          <span class="icon">&#9632;</span> Dashboard
+        </div>
+        <div class="nav-item" data-screen="config">
+          <span class="icon">&#9881;</span> Backend Setup
+          <span class="nav-badge" id="configBadge" style="display:none">0</span>
+        </div>
+        <div class="nav-item" data-screen="products">
+          <span class="icon">&#9776;</span> Product Groups
+          <span class="nav-badge" id="productsBadge" style="display:none">0</span>
+        </div>
+        <div class="nav-item" data-screen="bins">
+          <span class="icon">&#9638;</span> BIN Management
+          <span class="nav-badge" id="binsBadge" style="display:none">0</span>
+        </div>
+        <div class="nav-item" data-screen="recommendations">
+          <span class="icon">&#10003;</span> Recommendations
+        </div>
+        <div class="nav-item" data-screen="lifecycle">
+          <span class="icon">&#9733;</span> MID Lifecycle
+        </div>
+        <div class="nav-item" data-screen="analytics">
+          <span class="icon">&#9636;</span> Analytics
+        </div>
+        <div class="nav-item" data-screen="implementations">
+          <span class="icon">&#9745;</span> Impl. Tracker
+          <span class="nav-badge" id="implBadge" style="display:none">0</span>
+        </div>
+        <div class="nav-item" data-screen="network">
+          <span class="icon">&#9670;</span> Network Analysis
+        </div>
+        <div class="nav-item" data-screen="master-bins">
+          <span class="icon">&#9673;</span> Master BINs
+          <span class="nav-badge" id="masterBinsBadge" style="display:none">0</span>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sync-status">
+          Last sync: <span class="time" id="lastSync">never</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main" id="mainContent">
+      <!-- Screen content injected here by JS -->
+    </main>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/dashboard.js"></script>
+  <script src="/js/config.js"></script>
+  <script src="/js/recommendations.js"></script>
+  <script src="/js/lifecycle.js"></script>
+  <script src="/js/products.js"></script>
+  <script src="/js/analytics.js?v=20260404"></script>
+  <script src="/js/implementations.js"></script>
+  <script src="/js/network-analysis.js"></script>
+  <script src="/js/bins.js"></script>
+  <script src="/js/master-bins.js"></script>
+</body>
+</html>

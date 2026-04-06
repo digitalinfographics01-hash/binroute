@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node sticky-test.js)",
+      "Bash(node -e \":*)",
+      "Bash(cd /c/Users/\"This PC\"/binroute)",
+      "Bash(mkdir -p src/db src/api src/classifiers src/engine src/routes src/scheduler public/css public/js data templates)",
+      "Bash(npm install:*)",
+      "Bash(cd:*)",
+      "Bash(node src/db/schema.js)",
+      "Bash(node src/api/ingestion.js help)",
+      "Bash(timeout 5 node server.js)",
+      "Bash(curl -s http://localhost:3000/api/config/gateways/1)",
+      "Bash(node scripts/simulate-implementation.js create)"
+    ]
+  }
+}

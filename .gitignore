@@ -1,0 +1,13 @@
+node_modules/
+data/binroute.db
+data/binroute.db-wal
+data/binroute.db-shm
+checkpoint*.json
+import_log*.txt
+gmail-credentials.json
+gmail-token.json
+gw_data.json
+*.xlsx
+*.csv
+master_BIN_file.csv
+kytsan_Gateway_Info.csv

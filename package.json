@@ -1,0 +1,25 @@
+{
+  "name": "binroute",
+  "version": "1.0.0",
+  "description": "BIN routing optimization tool for payment processing",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "init-db": "node src/db/schema.js",
+    "ingest": "node src/api/ingestion.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "better-sqlite3": "^12.8.0",
+    "csv-parse": "^5.5.0",
+    "express": "^4.18.2",
+    "googleapis": "^171.4.0",
+    "imap": "^0.8.19",
+    "mailparser": "^3.9.6",
+    "multer": "^1.4.5-lts.1",
+    "node-cron": "^3.0.3",
+    "sql.js": "^1.10.0",
+    "xlsx": "^0.18.5"
+  }
+}

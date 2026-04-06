@@ -1,0 +1,43 @@
+[
+  {
+    "date": "2026-04-04T22:52:00",
+    "total_rows": 275361,
+    "train_rows": 220288,
+    "test_rows": 55073,
+    "general_auc": 0.9085,
+    "general_class_auc": {
+      "initial": 0.9789,
+      "rebill": 0.7679,
+      "salvage": 0.7876,
+      "cascade": 0.8897,
+      "upsell": 0.8849
+    },
+    "rebill_auc": 0.8345,
+    "rebill_train_rows": 139663,
+    "rebill_test_rows": 34916,
+    "prev_general_auc": 0,
+    "prev_rebill_auc": 0,
+    "promoted": true,
+    "note": "Initial training \u00e2\u20ac\u201d Layer 1-3 + subscription features + rebill specialist"
+  },
+  {
+    "date": "2026-04-04T23:11:18.464838",
+    "total_rows": 275361,
+    "train_rows": 220288,
+    "test_rows": 55073,
+    "general_auc": 0.9085,
+    "general_class_auc": {
+      "initial": 0.9789,
+      "rebill": 0.7679,
+      "salvage": 0.7876,
+      "cascade": 0.8897,
+      "upsell": 0.8849
+    },
+    "rebill_auc": 0.8319,
+    "rebill_train_rows": 137553,
+    "rebill_test_rows": 37026,
+    "prev_general_auc": 0.9085,
+    "prev_rebill_auc": 0.8345,
+    "promoted": false
+  }
+]

@@ -1,0 +1,401 @@
+{
+  "trained_at": "2026-04-04T22:27:09.889922",
+  "total_rows": 275361,
+  "train_rows": 220288,
+  "test_rows": 55073,
+  "feature_count": 27,
+  "features": [
+    "processor_name",
+    "acquiring_bank",
+    "mcc_code",
+    "issuer_bank",
+    "card_brand",
+    "card_type",
+    "tx_class",
+    "cycle_depth",
+    "prev_decline_reason",
+    "initial_processor",
+    "is_prepaid",
+    "amount",
+    "attempt_number",
+    "hour_of_day",
+    "day_of_week",
+    "mid_velocity_daily",
+    "mid_velocity_weekly",
+    "customer_history_on_proc",
+    "bin_velocity_weekly",
+    "consecutive_approvals",
+    "days_since_last_charge",
+    "days_since_initial",
+    "lifetime_charges",
+    "lifetime_revenue",
+    "initial_amount",
+    "amount_ratio",
+    "prior_declines_in_cycle"
+  ],
+  "winner": "LightGBM",
+  "models": {
+    "Logistic Regression": {
+      "auc_roc": 0.7256,
+      "f1": 0.5433,
+      "precision": 0.5168,
+      "recall": 0.5727,
+      "accuracy": 0.7738,
+      "train_time_seconds": 28.27
+    },
+    "Random Forest": {
+      "auc_roc": 0.8999,
+      "f1": 0.6947,
+      "precision": 0.7115,
+      "recall": 0.6787,
+      "accuracy": 0.8599,
+      "train_time_seconds": 21.59,
+      "feature_importance": [
+        {
+          "feature": "cycle_depth",
+          "importance": 0.1564
+        },
+        {
+          "feature": "attempt_number",
+          "importance": 0.1455
+        },
+        {
+          "feature": "days_since_last_charge",
+          "importance": 0.0981
+        },
+        {
+          "feature": "days_since_initial",
+          "importance": 0.0914
+        },
+        {
+          "feature": "amount",
+          "importance": 0.0784
+        },
+        {
+          "feature": "lifetime_revenue",
+          "importance": 0.0594
+        },
+        {
+          "feature": "lifetime_charges",
+          "importance": 0.0518
+        },
+        {
+          "feature": "amount_ratio",
+          "importance": 0.0451
+        },
+        {
+          "feature": "initial_amount",
+          "importance": 0.0432
+        },
+        {
+          "feature": "initial_processor",
+          "importance": 0.0418
+        },
+        {
+          "feature": "prior_declines_in_cycle",
+          "importance": 0.0342
+        },
+        {
+          "feature": "prev_decline_reason",
+          "importance": 0.0329
+        },
+        {
+          "feature": "mid_velocity_weekly",
+          "importance": 0.0275
+        },
+        {
+          "feature": "tx_class",
+          "importance": 0.0236
+        },
+        {
+          "feature": "mid_velocity_daily",
+          "importance": 0.0133
+        },
+        {
+          "feature": "issuer_bank",
+          "importance": 0.0115
+        },
+        {
+          "feature": "acquiring_bank",
+          "importance": 0.0095
+        },
+        {
+          "feature": "processor_name",
+          "importance": 0.0081
+        },
+        {
+          "feature": "bin_velocity_weekly",
+          "importance": 0.0076
+        },
+        {
+          "feature": "mcc_code",
+          "importance": 0.0058
+        },
+        {
+          "feature": "consecutive_approvals",
+          "importance": 0.0044
+        },
+        {
+          "feature": "card_brand",
+          "importance": 0.0035
+        },
+        {
+          "feature": "hour_of_day",
+          "importance": 0.0025
+        },
+        {
+          "feature": "day_of_week",
+          "importance": 0.0015
+        },
+        {
+          "feature": "customer_history_on_proc",
+          "importance": 0.0014
+        },
+        {
+          "feature": "card_type",
+          "importance": 0.0011
+        },
+        {
+          "feature": "is_prepaid",
+          "importance": 0.0006
+        }
+      ]
+    },
+    "XGBoost": {
+      "auc_roc": 0.9025,
+      "f1": 0.6995,
+      "precision": 0.7148,
+      "recall": 0.6848,
+      "accuracy": 0.8617,
+      "train_time_seconds": 5.83,
+      "feature_importance": [
+        {
+          "feature": "cycle_depth",
+          "importance": 0.6851
+        },
+        {
+          "feature": "attempt_number",
+          "importance": 0.1379
+        },
+        {
+          "feature": "days_since_last_charge",
+          "importance": 0.024
+        },
+        {
+          "feature": "prior_declines_in_cycle",
+          "importance": 0.0216
+        },
+        {
+          "feature": "tx_class",
+          "importance": 0.0209
+        },
+        {
+          "feature": "amount",
+          "importance": 0.0189
+        },
+        {
+          "feature": "days_since_initial",
+          "importance": 0.0154
+        },
+        {
+          "feature": "initial_processor",
+          "importance": 0.0127
+        },
+        {
+          "feature": "amount_ratio",
+          "importance": 0.009
+        },
+        {
+          "feature": "card_brand",
+          "importance": 0.0052
+        },
+        {
+          "feature": "prev_decline_reason",
+          "importance": 0.0042
+        },
+        {
+          "feature": "initial_amount",
+          "importance": 0.0041
+        },
+        {
+          "feature": "issuer_bank",
+          "importance": 0.004
+        },
+        {
+          "feature": "lifetime_revenue",
+          "importance": 0.0034
+        },
+        {
+          "feature": "card_type",
+          "importance": 0.0033
+        },
+        {
+          "feature": "acquiring_bank",
+          "importance": 0.0033
+        },
+        {
+          "feature": "processor_name",
+          "importance": 0.0032
+        },
+        {
+          "feature": "mid_velocity_weekly",
+          "importance": 0.003
+        },
+        {
+          "feature": "lifetime_charges",
+          "importance": 0.0029
+        },
+        {
+          "feature": "mcc_code",
+          "importance": 0.0028
+        },
+        {
+          "feature": "consecutive_approvals",
+          "importance": 0.0027
+        },
+        {
+          "feature": "is_prepaid",
+          "importance": 0.0024
+        },
+        {
+          "feature": "bin_velocity_weekly",
+          "importance": 0.0022
+        },
+        {
+          "feature": "mid_velocity_daily",
+          "importance": 0.0021
+        },
+        {
+          "feature": "customer_history_on_proc",
+          "importance": 0.0021
+        },
+        {
+          "feature": "day_of_week",
+          "importance": 0.0018
+        },
+        {
+          "feature": "hour_of_day",
+          "importance": 0.0018
+        }
+      ]
+    },
+    "LightGBM": {
+      "auc_roc": 0.9085,
+      "f1": 0.7087,
+      "precision": 0.6791,
+      "recall": 0.741,
+      "accuracy": 0.8569,
+      "train_time_seconds": 5.24,
+      "feature_importance": [
+        {
+          "feature": "issuer_bank",
+          "importance": 1086.0
+        },
+        {
+          "feature": "mid_velocity_weekly",
+          "importance": 876.0
+        },
+        {
+          "feature": "bin_velocity_weekly",
+          "importance": 810.0
+        },
+        {
+          "feature": "mid_velocity_daily",
+          "importance": 672.0
+        },
+        {
+          "feature": "amount",
+          "importance": 532.0
+        },
+        {
+          "feature": "days_since_initial",
+          "importance": 491.0
+        },
+        {
+          "feature": "amount_ratio",
+          "importance": 384.0
+        },
+        {
+          "feature": "prev_decline_reason",
+          "importance": 375.0
+        },
+        {
+          "feature": "days_since_last_charge",
+          "importance": 367.0
+        },
+        {
+          "feature": "mcc_code",
+          "importance": 353.0
+        },
+        {
+          "feature": "hour_of_day",
+          "importance": 346.0
+        },
+        {
+          "feature": "processor_name",
+          "importance": 324.0
+        },
+        {
+          "feature": "customer_history_on_proc",
+          "importance": 226.0
+        },
+        {
+          "feature": "initial_processor",
+          "importance": 226.0
+        },
+        {
+          "feature": "acquiring_bank",
+          "importance": 223.0
+        },
+        {
+          "feature": "card_brand",
+          "importance": 220.0
+        },
+        {
+          "feature": "tx_class",
+          "importance": 218.0
+        },
+        {
+          "feature": "day_of_week",
+          "importance": 211.0
+        },
+        {
+          "feature": "attempt_number",
+          "importance": 198.0
+        },
+        {
+          "feature": "initial_amount",
+          "importance": 188.0
+        },
+        {
+          "feature": "lifetime_revenue",
+          "importance": 176.0
+        },
+        {
+          "feature": "prior_declines_in_cycle",
+          "importance": 167.0
+        },
+        {
+          "feature": "card_type",
+          "importance": 155.0
+        },
+        {
+          "feature": "cycle_depth",
+          "importance": 64.0
+        },
+        {
+          "feature": "is_prepaid",
+          "importance": 44.0
+        },
+        {
+          "feature": "consecutive_approvals",
+          "importance": 34.0
+        },
+        {
+          "feature": "lifetime_charges",
+          "importance": 34.0
+        }
+      ]
+    }
+  }
+}

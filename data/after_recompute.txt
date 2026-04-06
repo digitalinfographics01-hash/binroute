@@ -1,0 +1,44 @@
+=== OVERALL ===
+Total: 56337 Approved: 14931 Rate: 26.5%
+
+=== TOP 10 GATEWAYS (by processing_gateway_id, cascade-corrected) ===
+GW_ID | Processor | Bank | Total | Approved | Rate
+172 | Cliq | Avidia | 3691 | 1013 | 27.45%
+188 | Paysafe | PNC | 3254 | 398 | 12.23%
+178 | Priority | Synovus | 3202 | 628 | 19.61%
+185 | Merchant Industry | Esquire | 2898 | 504 | 17.39%
+166 | Celero | Synovus | 2720 | 562 | 20.66%
+176 | Netevia | Esquire | 2632 | 426 | 16.19%
+183 | KURV | Harris | 2304 | 733 | 31.81%
+182 | KURV | Harris | 2300 | 840 | 36.52%
+181 | KURV | Harris | 2250 | 676 | 30.04%
+180 | KURV | Harris | 1897 | 724 | 38.17%
+
+=== PRODUCT ROLE BREAKDOWN ===
+main_rebill : 17303 orders, approved: 1793 (10.36%)
+main_initial : 15579 orders, approved: 5144 (33.02%)
+upsell_rebill : 10693 orders, approved: 1862 (17.41%)
+upsell_initial : 9499 orders, approved: 4982 (52.45%)
+straight_sale : 3263 orders, approved: 1150 (35.24%)
+
+=== CYCLE x ATTEMPT (first 20 combos) ===
+Cycle 0 Attempt 1 : 14125 orders
+Cycle 0 Attempt 2 : 2568 orders
+Cycle 0 Attempt 3 : 439 orders
+Cycle 0 Attempt 4 : 141 orders
+Cycle 0 Attempt 5 : 58 orders
+Cycle 0 Attempt 6 : 28 orders
+Cycle 0 Attempt 7 : 7 orders
+Cycle 0 Attempt 8 : 5 orders
+Cycle 0 Attempt 9 : 3 orders
+Cycle 0 Attempt 10 : 3 orders
+Cycle 0 Attempt 11 : 1 orders
+Cycle 0 Attempt 12 : 1 orders
+Cycle 1 Attempt 1 : 9611 orders
+Cycle 1 Attempt 2 : 6456 orders
+Cycle 1 Attempt 3 : 4340 orders
+Cycle 1 Attempt 4 : 3190 orders
+Cycle 1 Attempt 5 : 21 orders
+Cycle 2 Attempt 1 : 1439 orders
+Cycle 2 Attempt 2 : 659 orders
+Cycle 2 Attempt 3 : 493 orders
