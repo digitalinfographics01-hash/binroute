@@ -62,6 +62,11 @@ NUMERICAL_FEATURES = [
     'consecutive_approvals', 'days_since_last_charge',
     'days_since_initial', 'lifetime_charges', 'lifetime_revenue',
     'initial_amount', 'amount_ratio', 'prior_declines_in_cycle',
+    # Layer 3 — cascade chain + MID age
+    'cascade_depth', 'mid_age_days',
+    # Derived cascade features
+    'cascade_n_processors', 'cascade_had_nsf',
+    'cascade_had_do_not_honor', 'cascade_had_pickup',
 ]
 
 TARGET = 'outcome'
@@ -157,6 +162,10 @@ def main():
     )
     print_feature_importance(results[best_tree_name]['model'], feature_names, best_tree_name)
 
+    # --- Per-transaction-type evaluation ---
+    print(f"\n--- Per Transaction Type AUC ({winner_name}) ---\n")
+    evaluate_per_tx_type(winner['model'], df, split_idx, feature_names, encoders)
+
     # --- Export winner to ONNX ---
     print(f"\n--- Exporting {winner_name} to ONNX ---\n")
     export_to_onnx(winner['model'], winner_name, feature_names, X_train)
@@ -186,6 +195,8 @@ def load_data():
                consecutive_approvals, days_since_last_charge,
                days_since_initial, lifetime_charges, lifetime_revenue,
                initial_amount, amount_ratio, prior_declines_in_cycle,
+               cascade_depth, mid_age_days,
+               cascade_processors_tried, cascade_decline_reasons,
                outcome, acquisition_date
         FROM tx_features
         WHERE feature_version >= 2
@@ -195,6 +206,22 @@ def load_data():
 
     # Binary label: 1 = approved, 0 = declined
     df['label'] = (df['outcome'] == 'approved').astype(int)
+
+    # Derive features from cascade chain strings
+    # Number of unique processors tried in cascade
+    df['cascade_n_processors'] = df['cascade_processors_tried'].apply(
+        lambda x: len(x.split(',')) if pd.notna(x) and x else 0
+    )
+    # Whether specific hard-decline reasons appeared in cascade
+    df['cascade_had_nsf'] = df['cascade_decline_reasons'].apply(
+        lambda x: 1 if pd.notna(x) and 'Insufficient funds' in x else 0
+    )
+    df['cascade_had_do_not_honor'] = df['cascade_decline_reasons'].apply(
+        lambda x: 1 if pd.notna(x) and 'Do Not Honor' in x else 0
+    )
+    df['cascade_had_pickup'] = df['cascade_decline_reasons'].apply(
+        lambda x: 1 if pd.notna(x) and 'Pick up card' in x else 0
+    )
 
     return df
 
@@ -259,6 +286,63 @@ def train_and_evaluate(name, model, X_train, X_test, y_train, y_test):
 
     print(f"AUC-ROC: {metrics['auc_roc']:.4f} ({elapsed:.1f}s)")
     return metrics
+
+
+def evaluate_per_tx_type(model, df, split_idx, feature_names, encoders):
+    """Evaluate model AUC per transaction type and cycle depth."""
+    test_df = df.iloc[split_idx:].copy()
+
+    # Rebuild X for test set
+    encoded_cols = [f'{col}_enc' for col in CATEGORICAL_FEATURES]
+    feature_cols = encoded_cols + NUMERICAL_FEATURES
+    X_test = test_df[feature_cols].values.astype(np.float32)
+    y_test = test_df['label'].values
+    y_prob = model.predict_proba(X_test)[:, 1]
+
+    test_df['y_prob'] = y_prob
+    test_df['y_true'] = y_test
+
+    # Per tx_class
+    print(f"  {'TX Class':<20} {'Count':>7} {'Appr%':>6} {'AUC':>7}")
+    print(f"  " + "-" * 42)
+    for tx in sorted(test_df['tx_class'].unique()):
+        mask = test_df['tx_class'] == tx
+        sub = test_df[mask]
+        if len(sub) < 20 or sub['y_true'].nunique() < 2:
+            continue
+        auc = roc_auc_score(sub['y_true'], sub['y_prob'])
+        appr = sub['y_true'].mean() * 100
+        print(f"  {tx:<20} {len(sub):>7,} {appr:>5.1f}% {auc:>6.4f}")
+
+    # Per cycle_depth
+    print(f"\n  {'Cycle Depth':<20} {'Count':>7} {'Appr%':>6} {'AUC':>7}")
+    print(f"  " + "-" * 42)
+    for cd in ['C0', 'C1', 'C2', 'C3+']:
+        mask = test_df['cycle_depth_enc'] == encoders['cycle_depth'].transform([cd])[0] if cd in encoders['cycle_depth'].classes_ else pd.Series([False] * len(test_df))
+        sub = test_df[mask]
+        if len(sub) < 20 or sub['y_true'].nunique() < 2:
+            continue
+        auc = roc_auc_score(sub['y_true'], sub['y_prob'])
+        appr = sub['y_true'].mean() * 100
+        print(f"  {cd:<20} {len(sub):>7,} {appr:>5.1f}% {auc:>6.4f}")
+
+    # Per tx_class + cycle_depth combo
+    print(f"\n  {'TX Class + Cycle':<25} {'Count':>7} {'Appr%':>6} {'AUC':>7}")
+    print(f"  " + "-" * 47)
+    for tx in ['initial', 'upsell', 'rebill', 'cascade', 'salvage']:
+        for cd in ['C0', 'C1', 'C2', 'C3+']:
+            tx_mask = test_df['tx_class'] == tx
+            if cd in encoders['cycle_depth'].classes_:
+                cd_mask = test_df['cycle_depth_enc'] == encoders['cycle_depth'].transform([cd])[0]
+            else:
+                continue
+            mask = tx_mask & cd_mask
+            sub = test_df[mask]
+            if len(sub) < 20 or sub['y_true'].nunique() < 2:
+                continue
+            auc = roc_auc_score(sub['y_true'], sub['y_prob'])
+            appr = sub['y_true'].mean() * 100
+            print(f"  {tx + ' ' + cd:<25} {len(sub):>7,} {appr:>5.1f}% {auc:>6.4f}")
 
 
 # ---------------------------------------------------------------------------
