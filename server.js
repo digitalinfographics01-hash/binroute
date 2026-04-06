@@ -151,6 +151,26 @@ async function start() {
   await initializeDatabase();
   console.log('Database ready.');
 
+  // Preload analytics cache from DB into memory so GET requests work immediately
+  try {
+    const { querySql } = require('./src/db/connection');
+    const rows = querySql('SELECT client_id, output_type, cache_key, result_json FROM analytics_cache WHERE result_json IS NOT NULL');
+    if (rows.length > 0) {
+      const { preloadCache } = require('./src/analytics/engine');
+      let loaded = 0;
+      for (const row of rows) {
+        try {
+          const data = JSON.parse(row.result_json);
+          preloadCache(row.client_id, row.output_type, row.cache_key, data);
+          loaded++;
+        } catch (e) { /* skip bad entries */ }
+      }
+      console.log(`[Cache] Preloaded ${loaded} analytics entries from DB.`);
+    }
+  } catch (e) {
+    console.log('[Cache] Preload skipped:', e.message);
+  }
+
   startScheduler();
 
   app.listen(PORT, () => {

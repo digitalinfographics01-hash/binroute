@@ -223,7 +223,17 @@ function getCachedOrCompute(clientId, outputType, txType, computeFn) {
       return data;
     }
   } catch (e) {
-    // analytics_cache table may not exist yet — that's fine
+    console.error(`[Cache] DB read failed for ${outputType}/${txType || 'all'} client ${clientId}:`, e.message);
+    // If DB is busy, try computing directly instead of returning null
+    if (e.message && e.message.includes('SQLITE_BUSY')) {
+      try {
+        const data = computeFn();
+        _cache.set(key, { data, ts: Date.now() });
+        return data;
+      } catch (e2) {
+        console.error(`[Cache] Fallback compute also failed:`, e2.message);
+      }
+    }
   }
 
   // Force compute path (recomputeAllAnalytics / manual recompute)
@@ -504,6 +514,10 @@ module.exports = {
   recencyWeight,
   getCachedOrCompute,
   clearCache,
+  preloadCache: (clientId, outputType, cacheKey, data) => {
+    const key = `${clientId}:${outputType}:${cacheKey}`;
+    _cache.set(key, { data, ts: Date.now() });
+  },
   getCacheInfo,
   recomputeAllAnalytics,
   isRecomputing: () => _forceCompute,
