@@ -314,34 +314,31 @@ router.get('/clients/:clientId/onboarding-status', (req, res) => {
   )[0].cnt;
   const productsGrouped = groupCount > 0 && unassignedCount === 0 && prodCount > 0;
 
-  // 5. Product sequence tagged (main vs upsell on all groups)
-  const untaggedSequence = querySql(
+  // 5. Product sequence tagged — at least some groups have main/upsell set
+  // Groups like Compliance/ERecovery intentionally have NULL sequence
+  const taggedSequence = querySql(
     `SELECT COUNT(*) as cnt FROM product_groups
-     WHERE client_id = ? AND (product_sequence IS NULL OR product_sequence = '')`,
+     WHERE client_id = ? AND product_sequence IS NOT NULL AND product_sequence != ''`,
     [clientId]
   )[0].cnt;
-  const sequenceTagged = groupCount > 0 && untaggedSequence === 0;
+  const sequenceTagged = taggedSequence > 0;
 
-  // 6. Campaign types tagged
+  // 6. Campaigns synced (has campaign data — type tagging is optional)
   const totalCampaigns = querySql(
     'SELECT COUNT(*) as cnt FROM campaigns WHERE client_id = ?', [clientId]
   )[0].cnt;
-  const untaggedCampaigns = querySql(
-    `SELECT COUNT(*) as cnt FROM campaigns
-     WHERE client_id = ? AND (campaign_type IS NULL OR campaign_type = '')`,
-    [clientId]
-  )[0].cnt;
-  const campaignsTagged = totalCampaigns > 0 && untaggedCampaigns === 0;
+  const campaignsTagged = totalCampaigns > 0;
 
   // 7. MID config uploaded (processor + bank on active gateways)
   const activeGateways = querySql(
     "SELECT COUNT(*) as cnt FROM gateways WHERE client_id = ? AND lifecycle_state != 'closed'",
     [clientId]
   )[0].cnt;
+  // processor_name is required; bank_name is optional (some processors don't have a separate bank)
   const incompleteMids = querySql(
     `SELECT COUNT(*) as cnt FROM gateways
      WHERE client_id = ? AND lifecycle_state != 'closed'
-       AND (processor_name IS NULL OR bank_name IS NULL)`,
+       AND (processor_name IS NULL OR processor_name = '')`,
     [clientId]
   )[0].cnt;
   const midConfigured = activeGateways > 0 && incompleteMids === 0;
@@ -364,11 +361,14 @@ router.get('/clients/:clientId/onboarding-status', (req, res) => {
 
   // 10. Classification verified — 0 unclassified among classifiable orders
   // Orders with product_group_id should have derived_product_role
+  // Orders with a product group should have derived_product_role
+  // Some orders (Compliance/ERecovery) have NULL role — that's OK if they have a group assigned
   const unclassified = querySql(
     `SELECT COUNT(*) as cnt FROM orders
      WHERE client_id = ? AND is_test = 0 AND is_internal_test = 0
        AND order_status IN (2, 6, 7, 8)
-       AND derived_product_role IS NULL`,
+       AND product_group_id IS NULL
+       AND product_ids IS NOT NULL`,
     [clientId]
   )[0].cnt;
   const classificationVerified = orderCount > 0 && derivedCount > 0 && unclassified === 0;
@@ -413,8 +413,8 @@ router.get('/clients/:clientId/onboarding-status', (req, res) => {
     { key: 'gateways_synced',         label: 'Gateways synced',                    done: gatewaysSynced,         detail: `${gwCount} gateways` },
     { key: 'products_synced',         label: 'Products synced',                    done: productsSynced,         detail: `${prodCount} products` },
     { key: 'products_grouped',        label: 'Product groups assigned',            done: productsGrouped,        detail: unassignedCount > 0 ? `${unassignedCount} unassigned` : `${groupCount} groups` },
-    { key: 'sequence_tagged',         label: 'Product sequence tagged (main/upsell)', done: sequenceTagged,      detail: untaggedSequence > 0 ? `${untaggedSequence} untagged` : 'all tagged' },
-    { key: 'campaigns_tagged',        label: 'Campaign types tagged',              done: campaignsTagged,        detail: untaggedCampaigns > 0 ? `${untaggedCampaigns}/${totalCampaigns} untagged` : `${totalCampaigns} campaigns` },
+    { key: 'sequence_tagged',         label: 'Product sequence tagged (main/upsell)', done: sequenceTagged,      detail: `${taggedSequence}/${groupCount} tagged` },
+    { key: 'campaigns_tagged',        label: 'Campaigns synced',                   done: campaignsTagged,        detail: `${totalCampaigns} campaigns` },
     { key: 'mid_configured',          label: 'MID config (processor/bank)',         done: midConfigured,          detail: incompleteMids > 0 ? `${incompleteMids} incomplete` : `${activeGateways} configured` },
     { key: 'orders_synced',           label: 'Order data synced',                  done: ordersSynced,           detail: orderCount > 0 ? `${orderCount.toLocaleString()} orders` : 'no orders' },
     { key: 'cascade_detected',       label: 'Cascade detection',                  done: cascadeConfigured,      detail: cascadeDetail },
