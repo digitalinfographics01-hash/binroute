@@ -254,14 +254,28 @@ function getCachedOrCompute(clientId, outputType, txType, computeFn) {
 
 /**
  * Clear the analytics cache (useful after data refresh).
+ * @param {number} [clientId] - If provided, only clear cache for this client.
  */
-function clearCache() {
-  _cache.clear();
-  try {
-    runSql('DELETE FROM analytics_cache');
-    saveDb();
-  } catch (e) {
-    // Table may not exist — fine
+function clearCache(clientId) {
+  if (clientId) {
+    // Only clear entries for this specific client
+    for (const [key] of _cache) {
+      if (key.startsWith(`${clientId}:`)) _cache.delete(key);
+    }
+    try {
+      runSql('DELETE FROM analytics_cache WHERE client_id = ?', [clientId]);
+      saveDb();
+    } catch (e) {
+      // Table may not exist — fine
+    }
+  } else {
+    _cache.clear();
+    try {
+      runSql('DELETE FROM analytics_cache');
+      saveDb();
+    } catch (e) {
+      // Table may not exist — fine
+    }
   }
 }
 
@@ -323,7 +337,7 @@ async function recomputeAllAnalytics(clientId) {
   ];
 
   console.log(`[Cache] Recomputing all analytics for client ${clientId}...`);
-  clearCache();
+  clearCache(clientId);
   _forceCompute = true;
 
   let succeeded = 0;
