@@ -50,7 +50,7 @@ CATEGORICAL_FEATURES = [
     'processor_name', 'acquiring_bank', 'mcc_code',
     'issuer_bank', 'card_brand', 'card_type',
     'tx_class', 'cycle_depth', 'prev_decline_reason',
-    'initial_processor', 'offer_name',
+    'initial_processor', 'offer_name', 'training_client_id', 'billing_state',
 ]
 
 NUMERICAL_FEATURES = [
@@ -197,7 +197,7 @@ def load_data():
                initial_amount, amount_ratio, prior_declines_in_cycle,
                cascade_depth, mid_age_days,
                cascade_processors_tried, cascade_decline_reasons,
-               offer_name, outcome, acquisition_date
+               offer_name, training_client_id, billing_state, outcome, acquisition_date
         FROM tx_features
         WHERE feature_version >= 2
         ORDER BY acquisition_date ASC, id ASC

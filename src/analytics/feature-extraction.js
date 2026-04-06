@@ -64,7 +64,7 @@ function _loadQualifiedOrders(clientId, incrementalOnly) {
            o.cc_first_6, o.acquisition_date, o.decline_reason,
            o.derived_product_role, o.derived_cycle, o.derived_attempt,
            o.is_cascaded, o.processing_gateway_id, o.product_group_id,
-           o.client_id, o.cascade_chain, o.offer_name
+           o.client_id, o.cascade_chain, o.offer_name, o.billing_state
     FROM orders o
     WHERE o.client_id = ?
       AND o.order_status IN (2, 6, 7, 8)
@@ -108,9 +108,9 @@ function _processOrders(clientId, orders) {
       hour_of_day, day_of_week, prev_decline_reason,
       initial_processor,
       cascade_depth, cascade_processors_tried, cascade_decline_reasons,
-      mid_age_days, offer_name,
+      mid_age_days, offer_name, training_client_id, billing_state,
       acquisition_date, feature_version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2)
   `);
 
   let inserted = 0;
@@ -148,6 +148,8 @@ function _processOrders(clientId, orders) {
           features.cascade_decline_reasons,
           features.mid_age_days,
           features.offer_name,
+          features.client_id,
+          features.billing_state,
           features.acquisition_date
         );
         if (result.changes > 0) inserted++;
@@ -277,6 +279,8 @@ function _extractSingleOrder(o, gatewayMap, binMap, initialProcMap, prevDeclineM
     cascade_decline_reasons,
     mid_age_days,
     offer_name: o.offer_name || 'UNKNOWN',
+    client_id: String(clientId),
+    billing_state: o.billing_state || 'UNKNOWN',
     acquisition_date: o.acquisition_date,
   };
 }
