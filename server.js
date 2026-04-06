@@ -37,6 +37,16 @@ app.post('/api/auth/login', (req, res) => {
 
   req.session.userId = user.id;
   req.session.username = user.username;
+  req.session.role = user.role || 'admin';
+
+  // Load assigned clients for non-admin users
+  if (user.role && user.role !== 'admin') {
+    const rows = querySql('SELECT client_id FROM user_clients WHERE user_id = ?', [user.id]);
+    req.session.clientIds = rows.map(r => r.client_id);
+  } else {
+    req.session.clientIds = null; // null = all clients
+  }
+
   res.json({ success: true });
 });
 
@@ -47,7 +57,12 @@ app.post('/api/auth/logout', (req, res) => {
 
 app.get('/api/auth/check', (req, res) => {
   if (req.session.userId) {
-    res.json({ authenticated: true, username: req.session.username });
+    res.json({
+      authenticated: true,
+      username: req.session.username,
+      role: req.session.role || 'admin',
+      clientIds: req.session.clientIds || null,
+    });
   } else {
     res.json({ authenticated: false });
   }
@@ -75,6 +90,33 @@ app.use((req, res, next) => {
   next();
 });
 
+// Attach user context to every authenticated request
+app.use((req, res, next) => {
+  req.userRole = req.session.role || 'admin';
+  req.userClientIds = req.session.clientIds || null; // null = all (admin)
+  next();
+});
+
+// RBAC helpers
+function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!roles.includes(req.userRole)) {
+      return res.status(403).json({ error: 'Forbidden: insufficient permissions' });
+    }
+    next();
+  };
+}
+
+function requireClientAccess(req, res, next) {
+  if (req.userRole === 'admin') return next();
+  const clientId = parseInt(req.params.clientId || req.params[0], 10);
+  if (!clientId) return next(); // non-client-scoped route
+  if (!req.userClientIds || !req.userClientIds.includes(clientId)) {
+    return res.status(403).json({ error: 'Forbidden: no access to this client' });
+  }
+  next();
+}
+
 // Static files (after auth middleware)
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -86,18 +128,21 @@ app.use((req, res, next) => {
   next();
 });
 
-// API Routes
-app.use('/api/dashboard', require('./src/routes/dashboard'));
+// API Routes — admin-only routes
+app.use('/api/master-bins', requireRole('admin'), require('./src/routes/master-bins'));
+app.use('/api/network', requireRole('admin'), require('./src/routes/network-analysis'));
+app.use('/api/actions', requireRole('admin'), require('./src/routes/actions'));
+app.use('/api/users', requireRole('admin'), require('./src/routes/users'));
+
+// API Routes — client-scoped routes (check client access)
+app.use('/api/dashboard', requireClientAccess, require('./src/routes/dashboard'));
 app.use('/api/config', require('./src/routes/config'));
-app.use('/api/recommendations', require('./src/routes/recommendations'));
-app.use('/api/lifecycle', require('./src/routes/lifecycle'));
-app.use('/api/network', require('./src/routes/network-analysis'));
-app.use('/api/actions', require('./src/routes/actions'));
-app.use('/api/products', require('./src/routes/products'));
-app.use('/api/analytics', require('./src/routes/analytics'));
-app.use('/api/bins', require('./src/routes/bins'));
-app.use('/api/master-bins', require('./src/routes/master-bins'));
-app.use('/api/implementations', require('./src/routes/playbook-implementations'));
+app.use('/api/recommendations', requireClientAccess, require('./src/routes/recommendations'));
+app.use('/api/lifecycle', requireClientAccess, require('./src/routes/lifecycle'));
+app.use('/api/products', requireClientAccess, require('./src/routes/products'));
+app.use('/api/analytics', requireClientAccess, require('./src/routes/analytics'));
+app.use('/api/bins', requireClientAccess, require('./src/routes/bins'));
+app.use('/api/implementations', requireClientAccess, require('./src/routes/playbook-implementations'));
 
 // Dynamic template download — generates CSV from actual gateway data
 app.get('/api/templates/mid-config/:clientId', (req, res) => {

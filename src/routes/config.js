@@ -4,14 +4,24 @@ const router = express.Router();
 
 // ── Clients ──
 
-// GET /api/config/clients
+// GET /api/config/clients — filtered by user's assigned clients
 router.get('/clients', (req, res) => {
-  const clients = querySql('SELECT id, name, sticky_base_url, alert_threshold, analysis_window_days, created_at FROM clients ORDER BY name');
-  res.json(clients);
+  if (req.userRole === 'admin' || !req.userClientIds) {
+    const clients = querySql('SELECT id, name, sticky_base_url, alert_threshold, analysis_window_days, created_at FROM clients ORDER BY name');
+    res.json(clients);
+  } else {
+    const placeholders = req.userClientIds.map(() => '?').join(',');
+    const clients = querySql(
+      `SELECT id, name, sticky_base_url, alert_threshold, analysis_window_days, created_at FROM clients WHERE id IN (${placeholders}) ORDER BY name`,
+      req.userClientIds
+    );
+    res.json(clients);
+  }
 });
 
-// POST /api/config/clients
+// POST /api/config/clients — admin only
 router.post('/clients', (req, res) => {
+  if (req.userRole !== 'admin') return res.status(403).json({ error: 'Admin only' });
   const { name, sticky_base_url, sticky_username, sticky_password, alert_threshold } = req.body;
   if (!name || !sticky_base_url || !sticky_username || !sticky_password) {
     return res.status(400).json({ error: 'Missing required fields' });

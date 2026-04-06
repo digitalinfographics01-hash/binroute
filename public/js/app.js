@@ -5,13 +5,32 @@ const App = {
   currentScreen: 'dashboard',
   currentClient: null,
   clients: [],
+  role: 'admin',
+  username: null,
 
   async init() {
+    // Check auth and get role info
+    try {
+      const authRes = await fetch('/api/auth/check');
+      const auth = await authRes.json();
+      if (!auth.authenticated) {
+        window.location.href = '/login';
+        return;
+      }
+      this.role = auth.role || 'admin';
+      this.username = auth.username;
+    } catch (e) {
+      window.location.href = '/login';
+      return;
+    }
+
     await this.loadClients();
+    this.updateNavVisibility();
+    this.updateUserInfo();
     this.bindNav();
     this.navigate('dashboard');
     if (this.currentClient) Bins.updateBadge(this.currentClient);
-    MasterBins.updateBadge();
+    if (this.role === 'admin') MasterBins.updateBadge();
   },
 
   async loadClients() {
@@ -19,13 +38,22 @@ const App = {
       const res = await fetch('/api/config/clients');
       this.clients = await res.json();
       const select = document.getElementById('clientSelect');
-      select.innerHTML = this.clients.length === 0
-        ? '<option value="">No clients configured</option>'
-        : this.clients.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      const container = document.querySelector('.client-selector');
 
-      if (this.clients.length > 0) {
+      if (this.role === 'client' && this.clients.length === 1) {
+        // Single client user — hide selector, auto-select
+        container.style.display = 'none';
         this.currentClient = this.clients[0].id;
-        select.value = this.currentClient;
+      } else {
+        container.style.display = '';
+        select.innerHTML = this.clients.length === 0
+          ? '<option value="">No clients configured</option>'
+          : this.clients.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+        if (this.clients.length > 0) {
+          this.currentClient = this.clients[0].id;
+          select.value = this.currentClient;
+        }
       }
 
       select.addEventListener('change', (e) => {
@@ -36,6 +64,26 @@ const App = {
     } catch (err) {
       console.error('Failed to load clients:', err);
     }
+  },
+
+  updateNavVisibility() {
+    document.querySelectorAll('.nav-item').forEach(item => {
+      const allowedRoles = (item.dataset.roles || 'admin').split(',');
+      item.style.display = allowedRoles.includes(this.role) ? '' : 'none';
+    });
+  },
+
+  updateUserInfo() {
+    const el = document.getElementById('userInfo');
+    if (el) {
+      const roleLabel = { admin: 'Admin', manager: 'Manager', client: 'Client' }[this.role] || this.role;
+      el.innerHTML = `${this.username} <span style="opacity:0.6">(${roleLabel})</span> &middot; <a href="#" onclick="App.logout();return false" style="color:inherit">Logout</a>`;
+    }
+  },
+
+  async logout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
   },
 
   bindNav() {
@@ -65,6 +113,10 @@ const App = {
       MasterBins.render();
       return;
     }
+    if (screen === 'users') {
+      Users.render();
+      return;
+    }
 
     if (!this.currentClient) {
       main.innerHTML = `
@@ -72,7 +124,7 @@ const App = {
           <div class="icon">&#128274;</div>
           <h3>No Client Selected</h3>
           <p>Add a client to get started, or select one from the sidebar.</p>
-          <button class="btn btn-primary" style="margin-top:16px" onclick="App.showAddClient()">Add Client</button>
+          ${this.role === 'admin' ? '<button class="btn btn-primary" style="margin-top:16px" onclick="App.showAddClient()">Add Client</button>' : ''}
         </div>`;
       return;
     }
