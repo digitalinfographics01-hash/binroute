@@ -779,6 +779,8 @@ async function initializeDatabase() {
     "ALTER TABLE tx_features ADD COLUMN offer_name TEXT DEFAULT NULL",
     "ALTER TABLE tx_features ADD COLUMN training_client_id TEXT DEFAULT NULL",
     "ALTER TABLE tx_features ADD COLUMN billing_state TEXT DEFAULT NULL",
+    "ALTER TABLE tx_features ADD COLUMN last_approved_processor TEXT DEFAULT NULL",
+    "ALTER TABLE tx_features ADD COLUMN parent_declined_processor TEXT DEFAULT NULL",
   ];
   for (const m of migrations) {
     try { execSql(m); } catch (e) {

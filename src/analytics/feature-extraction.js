@@ -89,6 +89,8 @@ function _processOrders(clientId, orders) {
   const binMap = _buildBinMap();
   const initialProcMap = _buildInitialProcessorMap(clientId);
   const prevDeclineMap = _buildPrevDeclineMap(clientId);
+  const lastApprovedProcMap = _buildLastApprovedProcessorMap(clientId);
+  const parentDeclinedProcMap = _buildParentDeclinedProcessorMap(clientId);
 
   const db = getDb();
 
@@ -112,8 +114,9 @@ function _processOrders(clientId, orders) {
       initial_processor,
       cascade_depth, cascade_processors_tried, cascade_decline_reasons,
       mid_age_days, offer_name, training_client_id, billing_state,
+      last_approved_processor, parent_declined_processor,
       acquisition_date, feature_version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2)
   `);
 
   let inserted = 0;
@@ -123,7 +126,7 @@ function _processOrders(clientId, orders) {
     const batch = orders.slice(b, b + BATCH_SIZE);
     const runBatch = db.transaction((rows) => {
       for (const o of rows) {
-        const features = _extractSingleOrder(o, gatewayMap, binMap, initialProcMap, prevDeclineMap, clientId);
+        const features = _extractSingleOrder(o, gatewayMap, binMap, initialProcMap, prevDeclineMap, clientId, lastApprovedProcMap, parentDeclinedProcMap);
         if (!features) continue;
 
         const result = insertStmt.run(
@@ -153,6 +156,8 @@ function _processOrders(clientId, orders) {
           features.offer_name,
           features.client_id,
           features.billing_state,
+          features.last_approved_processor,
+          features.parent_declined_processor,
           features.acquisition_date
         );
         if (result.changes > 0) inserted++;
@@ -168,7 +173,7 @@ function _processOrders(clientId, orders) {
 /**
  * Extract features for a single order row.
  */
-function _extractSingleOrder(o, gatewayMap, binMap, initialProcMap, prevDeclineMap, clientId) {
+function _extractSingleOrder(o, gatewayMap, binMap, initialProcMap, prevDeclineMap, clientId, lastApprovedProcMap, parentDeclinedProcMap) {
   // --- LABEL ---
   const outcome = [2, 6, 8].includes(o.order_status) ? 'approved' : 'declined';
 
@@ -214,6 +219,20 @@ function _extractSingleOrder(o, gatewayMap, binMap, initialProcMap, prevDeclineM
   let initial_processor = null;
   if (tx_class !== 'initial' && tx_class !== 'upsell') {
     initial_processor = initialProcMap.get(o.customer_id) || null;
+  }
+
+  // last_approved_processor: for rebills, the processor of the most recent successful charge
+  let last_approved_processor = null;
+  if (tx_class === 'rebill') {
+    const key = `${o.customer_id}|${o.product_group_id}`;
+    last_approved_processor = lastApprovedProcMap.get(key) || initial_processor;
+  }
+
+  // parent_declined_processor: for salvage, the processor where the natural attempt declined
+  let parent_declined_processor = null;
+  if (tx_class === 'salvage' && o.derived_attempt >= 2) {
+    const key = `${o.customer_id}|${o.product_group_id}|${o.derived_cycle}|1`;
+    parent_declined_processor = parentDeclinedProcMap.get(key) || null;
   }
 
   // --- MID AGE ---
@@ -284,6 +303,8 @@ function _extractSingleOrder(o, gatewayMap, binMap, initialProcMap, prevDeclineM
     offer_name: o.offer_name || 'UNKNOWN',
     client_id: String(clientId),
     billing_state: o.billing_state || 'UNKNOWN',
+    last_approved_processor,
+    parent_declined_processor,
     acquisition_date: o.acquisition_date,
   };
 }
@@ -384,6 +405,58 @@ function _buildPrevDeclineMap(clientId) {
   for (const r of rows) {
     const key = `${r.customer_id}|${r.product_group_id}|${r.derived_cycle}|${r.derived_attempt}`;
     m.set(key, r.decline_reason);
+  }
+  return m;
+}
+
+/**
+ * Map<"customer_id|product_group_id", processor_name>
+ * The processor of the most recent approved order for this customer+product before the current cycle.
+ * Used by rebill model to know "which processor last succeeded for this subscription".
+ */
+function _buildLastApprovedProcessorMap(clientId) {
+  const rows = querySql(`
+    SELECT o.customer_id, o.product_group_id, g.processor_name, o.derived_cycle
+    FROM orders o
+    JOIN gateways g ON g.client_id = o.client_id AND g.gateway_id = o.processing_gateway_id
+    WHERE o.client_id = ?
+      AND o.order_status IN (2, 6, 8)
+      AND o.is_test = 0 AND o.is_internal_test = 0
+      AND o.customer_id IS NOT NULL
+      AND o.derived_attempt = 1
+    ORDER BY o.acquisition_date ASC
+  `, [clientId]);
+
+  const m = new Map();
+  for (const r of rows) {
+    const key = `${r.customer_id}|${r.product_group_id}`;
+    // Keep updating — last one wins (most recent approved)
+    m.set(key, normalizeProcessor(r.processor_name));
+  }
+  return m;
+}
+
+/**
+ * Map<"customer_id|product_group_id|cycle|1", processor_name>
+ * The processor where the natural rebill attempt (attempt 1) declined.
+ * Used by salvage model to know "which processor failed on the first try".
+ */
+function _buildParentDeclinedProcessorMap(clientId) {
+  const rows = querySql(`
+    SELECT o.customer_id, o.product_group_id, o.derived_cycle, g.processor_name
+    FROM orders o
+    JOIN gateways g ON g.client_id = o.client_id AND g.gateway_id = o.processing_gateway_id
+    WHERE o.client_id = ?
+      AND o.order_status = 7
+      AND o.derived_attempt = 1
+      AND o.is_test = 0 AND o.is_internal_test = 0
+      AND o.customer_id IS NOT NULL
+  `, [clientId]);
+
+  const m = new Map();
+  for (const r of rows) {
+    const key = `${r.customer_id}|${r.product_group_id}|${r.derived_cycle}|1`;
+    m.set(key, normalizeProcessor(r.processor_name));
   }
   return m;
 }
