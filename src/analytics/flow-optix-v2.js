@@ -308,12 +308,17 @@ function _compute(clientId, days, mode) {
   // =========================================================================
   const cardMap = new Map(); // key → card data
 
+  // Normalize bank/brand to prevent grouping splits from quote/case variations
+  const normField = (v) => v ? v.replace(/"/g, '').trim().toUpperCase() : 'Unknown';
+
   for (const row of natRows) {
-    const key = `${row.issuer_bank || 'Unknown'}|${row.card_brand || 'Unknown'}`;
+    const normBank = normField(row.issuer_bank);
+    const normBrand = normField(row.card_brand);
+    const key = `${normBank}|${normBrand}`;
     if (!cardMap.has(key)) {
       cardMap.set(key, {
-        issuer_bank: row.issuer_bank || 'Unknown',
-        card_brand: row.card_brand || 'Unknown',
+        issuer_bank: normBank,
+        card_brand: normBrand,
         bins: new Set(),
         processors: new Set(),
         totalAttempts: 0,
@@ -466,11 +471,13 @@ function _compute(clientId, days, mode) {
   const salByL3 = new Map(); // "bank|brand|prepaid" → [rows]
   const salByL2 = new Map(); // "bank|brand" → [rows]
   for (const row of salRows) {
+    const nb = normField(row.issuer_bank);
+    const nbr = normField(row.card_brand);
     const l3Key = row.is_prepaid ? 'prepaid' : 'non-prepaid';
-    const l4Key = row.card_type || 'Unknown';
-    const k4 = `${row.issuer_bank || 'Unknown'}|${row.card_brand || 'Unknown'}|${l3Key}|${l4Key}`;
-    const k3 = `${row.issuer_bank || 'Unknown'}|${row.card_brand || 'Unknown'}|${l3Key}`;
-    const k2 = `${row.issuer_bank || 'Unknown'}|${row.card_brand || 'Unknown'}`;
+    const l4Key = row.card_type ? normField(row.card_type) : 'Unknown';
+    const k4 = `${nb}|${nbr}|${l3Key}|${l4Key}`;
+    const k3 = `${nb}|${nbr}|${l3Key}`;
+    const k2 = `${nb}|${nbr}`;
     if (!salByL4.has(k4)) salByL4.set(k4, []);
     salByL4.get(k4).push(row);
     if (!salByL3.has(k3)) salByL3.set(k3, []);

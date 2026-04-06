@@ -54,9 +54,18 @@ router.get('/all', (req, res) => {
 // ── Upsert BIN (no client required) ──
 
 // PUT /api/master-bins/:bin
+// Normalize BIN field values — strip quotes, trim, uppercase
+function normalizeBinField(val) {
+  if (!val) return val;
+  return val.replace(/"/g, '').trim().toUpperCase();
+}
+
 router.put('/:bin', (req, res) => {
   const bin = req.params.bin;
-  const { issuer_bank, card_type, card_level, card_brand } = req.body;
+  const issuer_bank = normalizeBinField(req.body.issuer_bank);
+  const card_type = normalizeBinField(req.body.card_type);
+  const card_level = normalizeBinField(req.body.card_level);
+  const card_brand = normalizeBinField(req.body.card_brand);
   const is_prepaid = req.body.is_prepaid ? 1 : 0;
 
   const existing = querySql('SELECT * FROM bin_lookup WHERE bin = ?', [bin]);
