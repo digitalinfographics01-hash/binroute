@@ -1,5 +1,8 @@
 const express = require('express');
 const path = require('path');
+const session = require('express-session');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { initDb, closeDb } = require('./src/db/connection');
 const { initializeDatabase } = require('./src/db/schema');
 const { startScheduler } = require('./src/scheduler/jobs');
@@ -10,6 +13,69 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Session middleware
+app.use(session({
+  secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+  },
+}));
+
+// Auth routes (before auth middleware)
+app.post('/api/auth/login', (req, res) => {
+  const { username, password } = req.body;
+  const { querySql } = require('./src/db/connection');
+
+  const user = querySql('SELECT * FROM users WHERE username = ?', [username])[0];
+  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    return res.json({ success: false, message: 'Invalid username or password' });
+  }
+
+  req.session.userId = user.id;
+  req.session.username = user.username;
+  res.json({ success: true });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  req.session.destroy();
+  res.json({ success: true });
+});
+
+app.get('/api/auth/check', (req, res) => {
+  if (req.session.userId) {
+    res.json({ authenticated: true, username: req.session.username });
+  } else {
+    res.json({ authenticated: false });
+  }
+});
+
+// Login page (public)
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// Auth middleware — protect everything except login
+app.use((req, res, next) => {
+  // Allow login page assets
+  if (req.path === '/login' || req.path.startsWith('/api/auth/')) {
+    return next();
+  }
+  // Check session
+  if (!req.session.userId) {
+    // API requests get 401, page requests redirect to login
+    if (req.path.startsWith('/api/')) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    return res.redirect('/login');
+  }
+  next();
+});
+
+// Static files (after auth middleware)
 app.use(express.static(path.join(__dirname, 'public')));
 
 // CORS for development
