@@ -24,7 +24,7 @@ router.get('/unmatched', (req, res) => {
     LEFT JOIN bin_lookup b ON o.cc_first_6 = b.bin
     LEFT JOIN clients c ON o.client_id = c.id
     WHERE o.is_test = 0 AND o.is_internal_test = 0
-    AND (b.bin IS NULL OR b.issuer_bank IS NULL OR b.card_type IS NULL OR b.card_level IS NULL)
+    AND (b.bin IS NULL OR (b.issuer_bank IS NULL AND b.card_type IS NULL))
     GROUP BY o.cc_first_6
     ORDER BY order_count DESC
   `);
@@ -99,7 +99,7 @@ router.get('/unmatched-count', (req, res) => {
     FROM orders o
     LEFT JOIN bin_lookup b ON o.cc_first_6 = b.bin
     WHERE o.is_test = 0 AND o.is_internal_test = 0
-    AND (b.bin IS NULL OR b.issuer_bank IS NULL OR b.card_type IS NULL OR b.card_level IS NULL)
+    AND (b.bin IS NULL OR (b.issuer_bank IS NULL AND b.card_type IS NULL))
   `);
   res.json(row[0]);
 });
