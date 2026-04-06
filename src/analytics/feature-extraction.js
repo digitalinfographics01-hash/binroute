@@ -108,8 +108,9 @@ function _processOrders(clientId, orders) {
       hour_of_day, day_of_week, prev_decline_reason,
       initial_processor,
       cascade_depth, cascade_processors_tried, cascade_decline_reasons,
+      mid_age_days,
       acquisition_date, feature_version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2)
   `);
 
   let inserted = 0;
@@ -145,6 +146,7 @@ function _processOrders(clientId, orders) {
           features.cascade_depth,
           features.cascade_processors_tried,
           features.cascade_decline_reasons,
+          features.mid_age_days,
           features.acquisition_date
         );
         if (result.changes > 0) inserted++;
@@ -208,6 +210,16 @@ function _extractSingleOrder(o, gatewayMap, binMap, initialProcMap, prevDeclineM
     initial_processor = initialProcMap.get(o.customer_id) || null;
   }
 
+  // --- MID AGE ---
+  let mid_age_days = null;
+  if (gw && gw.gateway_created && o.acquisition_date) {
+    const gwCreated = new Date(gw.gateway_created);
+    const orderDate = new Date(o.acquisition_date);
+    if (!isNaN(gwCreated.getTime()) && !isNaN(orderDate.getTime())) {
+      mid_age_days = Math.max(0, (orderDate - gwCreated) / 86400000);
+    }
+  }
+
   // --- CASCADE CHAIN FEATURES ---
   let cascade_depth = 0;
   let cascade_processors_tried = null;
@@ -262,6 +274,7 @@ function _extractSingleOrder(o, gatewayMap, binMap, initialProcMap, prevDeclineM
     cascade_depth,
     cascade_processors_tried,
     cascade_decline_reasons,
+    mid_age_days,
     acquisition_date: o.acquisition_date,
   };
 }
@@ -300,7 +313,7 @@ function _deriveCycleDepth(cycle) {
 /** Map<gateway_id, { processor_name, bank_name, mcc_code }> across all clients */
 function _buildGatewayMap(clientId) {
   const rows = querySql(`
-    SELECT gateway_id, processor_name, bank_name, mcc_code
+    SELECT gateway_id, processor_name, bank_name, mcc_code, gateway_created
     FROM gateways WHERE client_id = ?
   `, [clientId]);
   const m = new Map();

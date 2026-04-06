@@ -775,6 +775,7 @@ async function initializeDatabase() {
     "ALTER TABLE tx_features ADD COLUMN cascade_depth INTEGER DEFAULT 0",
     "ALTER TABLE tx_features ADD COLUMN cascade_processors_tried TEXT DEFAULT NULL",
     "ALTER TABLE tx_features ADD COLUMN cascade_decline_reasons TEXT DEFAULT NULL",
+    "ALTER TABLE tx_features ADD COLUMN mid_age_days REAL DEFAULT NULL",
   ];
   for (const m of migrations) {
     try { execSql(m); } catch (e) {
