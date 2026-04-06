@@ -54,7 +54,7 @@ SHARED_NUMERICAL = [
 MODEL_CONFIGS = {
     'initial_cascade': {
         'name': 'Initial + Cascade',
-        'filter': "tx_class IN ('initial', 'upsell', 'cascade')",
+        'filter': "tx_class in ['initial', 'upsell', 'cascade']",
         'categorical': SHARED_CATEGORICAL + ['tx_class'],
         'numerical': SHARED_NUMERICAL + [
             'attempt_number', 'cascade_depth',
@@ -65,7 +65,7 @@ MODEL_CONFIGS = {
     },
     'rebill': {
         'name': 'Rebill (Natural)',
-        'filter': "tx_class = 'rebill'",
+        'filter': "tx_class == 'rebill'",
         'categorical': SHARED_CATEGORICAL + ['initial_processor', 'last_approved_processor'],
         'numerical': SHARED_NUMERICAL + [
             'consecutive_approvals', 'days_since_last_charge',
@@ -76,7 +76,7 @@ MODEL_CONFIGS = {
     },
     'rebill_salvage': {
         'name': 'Rebill Salvage',
-        'filter': "tx_class = 'salvage'",
+        'filter': "tx_class == 'salvage'",
         'categorical': SHARED_CATEGORICAL + [
             'initial_processor', 'last_approved_processor',
             'parent_declined_processor', 'prev_decline_reason',
