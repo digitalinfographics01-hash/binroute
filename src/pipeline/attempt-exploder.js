@@ -97,6 +97,10 @@ function explodeOrdersToAttempts(clientId, orderInternalIds) {
       AND is_test = 0 AND is_internal_test = 0
       AND product_type_classified IS NOT NULL
       AND product_type_classified != 'straight_sale'
+      AND gateway_id NOT IN (
+        SELECT gateway_id FROM gateways WHERE client_id = ${clientId} AND exclude_from_analysis = 1
+      )
+      AND NOT (customer_id IS NULL AND product_type_classified = 'rebill')
   `, orderInternalIds);
 
   if (orders.length === 0) return 0;
@@ -153,8 +157,12 @@ function _loadQualifyingOrders(clientId) {
       AND is_test = 0 AND is_internal_test = 0
       AND product_type_classified IS NOT NULL
       AND product_type_classified != 'straight_sale'
+      AND gateway_id NOT IN (
+        SELECT gateway_id FROM gateways WHERE client_id = ? AND exclude_from_analysis = 1
+      )
+      AND NOT (customer_id IS NULL AND product_type_classified = 'rebill')
     ORDER BY order_id
-  `, [clientId]);
+  `, [clientId, clientId]);
 }
 
 // ---------------------------------------------------------------------------
