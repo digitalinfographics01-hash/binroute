@@ -136,9 +136,15 @@ function _buildAllMaps(clientId) {
   const lastApprovedProcMap = _buildLastApprovedProcessorMap(clientId);
   const parentDeclinedProcMap = _buildParentDeclinedProcessorMap(clientId);
 
-  console.log(`[Exploder] Maps built — ${gatewayMap.size} gateways, ${binMap.size} BINs, ${initialProcMap.size} initial procs`);
+  // Build set of excluded gateway IDs (Payfac, Dry Run, etc.)
+  const excludedGwRows = querySql(
+    'SELECT gateway_id FROM gateways WHERE client_id = ? AND exclude_from_analysis = 1', [clientId]
+  );
+  const excludedGateways = new Set(excludedGwRows.map(r => r.gateway_id));
 
-  return { gatewayMap, binMap, initialProcMap, prevDeclineMap, lastApprovedProcMap, parentDeclinedProcMap };
+  console.log(`[Exploder] Maps built — ${gatewayMap.size} gateways, ${binMap.size} BINs, ${initialProcMap.size} initial procs, ${excludedGateways.size} excluded GWs`);
+
+  return { gatewayMap, binMap, initialProcMap, prevDeclineMap, lastApprovedProcMap, parentDeclinedProcMap, excludedGateways };
 }
 
 // ---------------------------------------------------------------------------
@@ -174,7 +180,7 @@ function _loadQualifyingOrders(clientId) {
  * Returns array of attempt objects with all core features populated.
  */
 function _explodeOrder(order, maps) {
-  const { gatewayMap, binMap, initialProcMap, prevDeclineMap, lastApprovedProcMap, parentDeclinedProcMap } = maps;
+  const { gatewayMap, binMap, initialProcMap, prevDeclineMap, lastApprovedProcMap, parentDeclinedProcMap, excludedGateways } = maps;
   const attempts = [];
   const isApproved = [2, 6, 8].includes(order.order_status);
   const orderOutcome = isApproved ? 'approved' : 'declined';
@@ -249,9 +255,9 @@ function _explodeOrder(order, maps) {
   const isCascadedNoChain = order.is_cascaded === 1 && chain.length === 0;
 
   if (hasCascadeData) {
-    _explodeCascadedOrder(order, chain, common, gatewayMap, orderOutcome, isApproved, attempts);
+    _explodeCascadedOrder(order, chain, common, gatewayMap, excludedGateways, orderOutcome, isApproved, attempts);
   } else {
-    _explodeSimpleOrder(order, common, gatewayMap, orderOutcome, isCascadedNoChain, attempts);
+    _explodeSimpleOrder(order, common, gatewayMap, excludedGateways, orderOutcome, isCascadedNoChain, attempts);
   }
 
   return attempts;
@@ -260,7 +266,7 @@ function _explodeOrder(order, maps) {
 /**
  * Cascaded order WITH chain data → multiple attempt rows.
  */
-function _explodeCascadedOrder(order, chain, common, gatewayMap, orderOutcome, isApproved, attempts) {
+function _explodeCascadedOrder(order, chain, common, gatewayMap, excludedGateways, orderOutcome, isApproved, attempts) {
   const finalNotInChain = !chain.some(e => e.gateway_id === order.gateway_id);
   const totalAttempts = chain.length + (finalNotInChain ? 1 : 0);
 
@@ -311,7 +317,7 @@ function _explodeCascadedOrder(order, chain, common, gatewayMap, orderOutcome, i
       cascade_approved_processor: cascadeApprovedProc,
       mid_age_days,
       ...cascadeFlags,
-      model_target: _assignModelTarget(common.derived_product_role, common.derived_attempt, i),
+      model_target: _assignModelTarget(common.derived_product_role, common.derived_attempt, i, entry.gateway_id, excludedGateways),
       source: 'chain',
       feature_version: 1,
     });
@@ -344,7 +350,7 @@ function _explodeCascadedOrder(order, chain, common, gatewayMap, orderOutcome, i
       cascade_approved_processor: null,
       mid_age_days,
       ...cascadeFlags,
-      model_target: _assignModelTarget(common.derived_product_role, common.derived_attempt, chain.length),
+      model_target: _assignModelTarget(common.derived_product_role, common.derived_attempt, chain.length, order.gateway_id, excludedGateways),
       source: 'chain',
       feature_version: 1,
     });
@@ -354,7 +360,7 @@ function _explodeCascadedOrder(order, chain, common, gatewayMap, orderOutcome, i
 /**
  * Non-cascaded order OR cascaded without chain → single attempt row.
  */
-function _explodeSimpleOrder(order, common, gatewayMap, orderOutcome, isCascadedNoChain, attempts) {
+function _explodeSimpleOrder(order, common, gatewayMap, excludedGateways, orderOutcome, isCascadedNoChain, attempts) {
   const gw = gatewayMap.get(order.gateway_id);
   const procName = gw ? normalizeProcessor(gw.processor_name) : null;
   const mid_age_days = _computeMidAge(gw, order.acquisition_date);
@@ -379,7 +385,7 @@ function _explodeSimpleOrder(order, common, gatewayMap, orderOutcome, isCascaded
     had_nsf: 0,
     had_do_not_honor: 0,
     had_pickup: 0,
-    model_target: _assignModelTarget(common.derived_product_role, common.derived_attempt, 0),
+    model_target: _assignModelTarget(common.derived_product_role, common.derived_attempt, 0, order.gateway_id, excludedGateways),
     source: isCascadedNoChain ? 'incomplete' : 'order_direct',
     feature_version: 1,
   });
@@ -431,13 +437,17 @@ function _computeCascadeFlags(priorReasons) {
 
 /**
  * Universal model_target assignment — no per-client logic.
+ * If gatewayId is in excludedGateways, initial attempts are excluded
+ * (cascade/rebill/salvage on excluded GWs are kept — real historical data).
  */
-function _assignModelTarget(derivedProductRole, derivedAttempt, cascadePosition) {
+function _assignModelTarget(derivedProductRole, derivedAttempt, cascadePosition, gatewayId, excludedGateways) {
   if (!derivedProductRole) return 'excluded';
 
   if (cascadePosition > 0) return 'cascade';
 
   if (derivedProductRole === 'main_initial' || derivedProductRole === 'upsell_initial') {
+    // Don't train initial model on excluded gateways (Payfac, etc.)
+    if (excludedGateways && excludedGateways.has(gatewayId)) return 'excluded';
     return 'initial';
   }
   if (derivedProductRole === 'main_rebill' || derivedProductRole === 'upsell_rebill') {
