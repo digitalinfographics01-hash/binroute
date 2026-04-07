@@ -461,4 +461,13 @@ function _buildParentDeclinedProcessorMap(clientId) {
   return m;
 }
 
-module.exports = { extractFeatures, rebuildFeatures };
+module.exports = {
+  extractFeatures,
+  rebuildFeatures,
+  _buildGatewayMap,
+  _buildBinMap,
+  _buildInitialProcessorMap,
+  _buildPrevDeclineMap,
+  _buildLastApprovedProcessorMap,
+  _buildParentDeclinedProcessorMap,
+};

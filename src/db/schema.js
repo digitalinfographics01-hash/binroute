@@ -632,6 +632,83 @@ CREATE TABLE IF NOT EXISTS tx_features (
 
   UNIQUE(client_id, sticky_order_id)
 );
+
+-- Transaction attempts — one row per gateway attempt (exploded from cascade chains)
+CREATE TABLE IF NOT EXISTS transaction_attempts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL,
+  order_id INTEGER NOT NULL,
+  sticky_order_id INTEGER NOT NULL,
+  customer_id INTEGER,
+
+  -- ATTEMPT IDENTITY
+  attempt_seq INTEGER NOT NULL,
+  gateway_id INTEGER NOT NULL,
+  processor_name TEXT,
+  acquiring_bank TEXT,
+  mcc_code TEXT,
+  outcome TEXT NOT NULL,
+  decline_reason TEXT,
+
+  -- ORDER CONTEXT (from parent order, same for all attempts)
+  cc_first_6 TEXT,
+  order_total REAL,
+  acquisition_date DATETIME,
+  derived_product_role TEXT,
+  product_type_classified TEXT,
+  derived_cycle INTEGER,
+  derived_attempt INTEGER,
+  product_group_id INTEGER,
+  offer_name TEXT,
+  billing_state TEXT,
+  is_cascaded INTEGER DEFAULT 0,
+
+  -- CASCADE CONTEXT
+  initial_declined_processor TEXT,
+  initial_decline_reason TEXT,
+  cascade_position INTEGER DEFAULT 0,
+  total_attempts INTEGER DEFAULT 1,
+  processors_tried_before TEXT,
+  cascade_final_outcome TEXT,
+  cascade_approved_processor TEXT,
+
+  -- MODEL ROUTING
+  model_target TEXT NOT NULL,
+
+  -- DATA QUALITY
+  source TEXT DEFAULT 'chain',
+
+  -- FEATURE COLUMNS (populated by attempt-feature-extraction)
+  issuer_bank TEXT,
+  card_brand TEXT,
+  card_type TEXT,
+  is_prepaid INTEGER DEFAULT 0,
+  hour_of_day INTEGER,
+  day_of_week INTEGER,
+  mid_age_days REAL,
+  had_nsf INTEGER DEFAULT 0,
+  had_do_not_honor INTEGER DEFAULT 0,
+  had_pickup INTEGER DEFAULT 0,
+  initial_processor TEXT,
+  last_approved_processor TEXT,
+  parent_declined_processor TEXT,
+  prev_decline_reason TEXT,
+  mid_velocity_daily INTEGER,
+  mid_velocity_weekly INTEGER,
+  customer_history_on_proc INTEGER,
+  bin_velocity_weekly INTEGER,
+  consecutive_approvals INTEGER,
+  days_since_last_charge REAL,
+  days_since_initial REAL,
+  lifetime_charges INTEGER,
+  lifetime_revenue REAL,
+  initial_amount REAL,
+  amount_ratio REAL,
+  prior_declines_in_cycle INTEGER,
+  feature_version INTEGER DEFAULT 0,
+
+  UNIQUE(client_id, sticky_order_id, attempt_seq)
+);
 `;
 
 const INDEXES_SQL = `
@@ -666,6 +743,12 @@ CREATE INDEX IF NOT EXISTS idx_txf_processor ON tx_features(processor_name, outc
 CREATE INDEX IF NOT EXISTS idx_txf_issuer ON tx_features(issuer_bank, outcome);
 CREATE INDEX IF NOT EXISTS idx_txf_order ON tx_features(order_id);
 CREATE INDEX IF NOT EXISTS idx_txf_version ON tx_features(feature_version);
+CREATE INDEX IF NOT EXISTS idx_ta_client_model_outcome ON transaction_attempts(client_id, model_target, outcome);
+CREATE INDEX IF NOT EXISTS idx_ta_client_gw_outcome ON transaction_attempts(client_id, gateway_id, outcome);
+CREATE INDEX IF NOT EXISTS idx_ta_client_seq ON transaction_attempts(client_id, attempt_seq);
+CREATE INDEX IF NOT EXISTS idx_ta_order ON transaction_attempts(order_id);
+CREATE INDEX IF NOT EXISTS idx_ta_customer_role ON transaction_attempts(customer_id, derived_product_role);
+CREATE INDEX IF NOT EXISTS idx_ta_date ON transaction_attempts(acquisition_date);
 `;
 
 /**
@@ -809,7 +892,7 @@ async function initializeDatabase() {
 async function resetDatabase() {
   const db = await initDb();
   const dropOrder = [
-    'tx_features',
+    'transaction_attempts', 'tx_features',
     'bin_lookup', 'product_group_assignments', 'product_groups', 'products_catalog',
     'implementations', 'recommendations', 'bin_performance',
     'change_log', 'alerts', 'sync_state', 'orders',
