@@ -405,7 +405,7 @@ function _getModelContext(order) {
   const isRebill = role === 'main_rebill' || role === 'upsell_rebill';
 
   return {
-    needsInitialProc: !isInitial, // rebills and salvage need to know who approved the initial
+    needsInitialProc: role !== 'main_initial', // upsells, rebills, salvage all need initial proc
     needsLastApproved: isRebill,  // rebills need the last successful processor
     needsParentDeclined: isRebill && attempt >= 2, // salvage needs the natural attempt's processor
   };

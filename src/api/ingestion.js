@@ -274,27 +274,31 @@ class DataIngestion {
           this.progress.totalChunksCompleted += result.chunksSaved || 0;
           this.progress.totalChunksFailed += result.chunksFailed || 0;
 
-          // DB-based verification — count actual orders written for this day
-          const dbCount = this._getDBCountForDay(day);
+          // Verification: compare fetched orders vs API probe total.
+          // We use totalFetched (orders received from API) not DB date count,
+          // because acquisition_date may differ from the API's create date
+          // (e.g., rebills have acquisition_date = original subscription date).
+          const fetched = result.totalFetched || 0;
           const coverage = result.apiTotal > 0
-            ? Math.min(1, dbCount / result.apiTotal)  // cap at 1.0
+            ? Math.min(1, fetched / result.apiTotal)
             : 1;
 
           if (coverage >= 0.98) {
             checkpoint.days[day] = {
               status: 'verified', api_total: result.apiTotal,
-              db_count: dbCount, retries, completed_at: new Date().toISOString()
+              fetched, saved: result.totalSaved || 0,
+              retries, completed_at: new Date().toISOString()
             };
             this.progress.verifiedDays++;
-            log(`  ${day}: verified ${dbCount}/${result.apiTotal} (${(coverage * 100).toFixed(1)}%)`);
+            log(`  ${day}: verified ${fetched}/${result.apiTotal} fetched (${(coverage * 100).toFixed(1)}%), ${result.totalSaved || 0} saved`);
           } else {
             checkpoint.days[day] = {
               status: 'partial', api_total: result.apiTotal,
-              db_count: dbCount, retries: retries + 1,
-              completed_at: new Date().toISOString()
+              fetched, saved: result.totalSaved || 0,
+              retries: retries + 1, completed_at: new Date().toISOString()
             };
             this.progress.partialDays++;
-            log(`  ${day}: PARTIAL ${dbCount}/${result.apiTotal} (${(coverage * 100).toFixed(1)}%) — will retry`);
+            log(`  ${day}: PARTIAL ${fetched}/${result.apiTotal} fetched (${(coverage * 100).toFixed(1)}%) — will retry`);
           }
         } catch (err) {
           checkpoint.days[day] = {
@@ -332,15 +336,16 @@ class DataIngestion {
             checkpoint,
             cpPath,
           });
-          const dbCount = this._getDBCountForDay(day);
-          const coverage = result.apiTotal > 0 ? Math.min(1, dbCount / result.apiTotal) : 1;
-          checkpoint.days[day].db_count = dbCount;
+          const fetched = result.totalFetched || 0;
+          const coverage = result.apiTotal > 0 ? Math.min(1, fetched / result.apiTotal) : 1;
+          checkpoint.days[day].fetched = fetched;
+          checkpoint.days[day].saved = result.totalSaved || 0;
           checkpoint.days[day].retries++;
           if (coverage >= 0.98) {
             checkpoint.days[day].status = 'verified';
-            log(`  ${day}: retry verified ${dbCount}/${result.apiTotal}`);
+            log(`  ${day}: retry verified ${fetched}/${result.apiTotal} fetched, ${result.totalSaved || 0} saved`);
           } else {
-            log(`  ${day}: retry still partial ${dbCount}/${result.apiTotal} (${(coverage * 100).toFixed(1)}%)`);
+            log(`  ${day}: retry still partial ${fetched}/${result.apiTotal} (${(coverage * 100).toFixed(1)}%)`);
           }
         } catch (err) {
           checkpoint.days[day].retries++;
@@ -390,7 +395,7 @@ class DataIngestion {
     const probe = await this._orderFindTimeRange(day, '00:00:00', '23:59:59');
     if (!probe.data || probe.data.response_code !== '100') {
       if (probe.data?.response_code === '200') {
-        return streaming ? { apiTotal: 0, apiCalls: 1, chunksSaved: 0, chunksFailed: 0 } : { orders: [], apiTotal: 0, apiCalls: 1 };
+        return streaming ? { apiTotal: 0, apiCalls: 1, chunksSaved: 0, chunksFailed: 0, totalFetched: 0, totalSaved: 0 } : { orders: [], apiTotal: 0, apiCalls: 1 };
       }
       throw new Error(`Probe failed: code=${probe.data?.response_code}`);
     }
@@ -402,8 +407,8 @@ class DataIngestion {
     if (apiTotal <= 450) {
       const orders = this.client.parseOrdersFromResponse(probe.data);
       if (streaming) {
-        await onChunk(orders);
-        return { apiTotal, apiCalls, chunksSaved: 1, chunksFailed: 0 };
+        const saved = await onChunk(orders);
+        return { apiTotal, apiCalls, chunksSaved: 1, chunksFailed: 0, totalFetched: orders.length, totalSaved: saved || orders.length };
       }
       return { orders, apiTotal, apiCalls };
     }
@@ -429,6 +434,7 @@ class DataIngestion {
     let chunksSaved = 0;
     let chunksFailed = 0;
     let totalSaved = 0;
+    let totalFetched = 0;
 
     for (let ci = 0; ci < chunks.length; ci++) {
       const chunk = chunks[ci];
@@ -453,6 +459,7 @@ class DataIngestion {
         const saved = await onChunk(orders);
         const saveMs = Date.now() - saveStart;
         totalSaved += (saved || orders.length);
+        totalFetched += orders.length;
         chunksSaved++;
         log(`    ${day}: chunk ${ci + 1}/${chunks.length}, ${orders.length} fetched, fetch ${fetchMs}ms, save ${saveMs}ms, total ${totalSaved}`);
 
@@ -502,6 +509,7 @@ class DataIngestion {
           const saved = await onChunk(orders);
           const saveMs = Date.now() - saveStart;
           totalSaved += (saved || orders.length);
+          totalFetched += orders.length;
           chunksSaved++;
           log(`    ${day}: retry chunk, ${orders.length} fetched, fetch ${fetchMs}ms, save ${saveMs}ms, total ${totalSaved}`);
 
@@ -530,6 +538,7 @@ class DataIngestion {
                 if (streaming) {
                   const saved = await onChunk(subOrders);
                   totalSaved += (saved || subOrders.length);
+                  totalFetched += subOrders.length;
                   chunksSaved++;
                 } else {
                   allOrders.push(...subOrders);
@@ -542,7 +551,7 @@ class DataIngestion {
     }
 
     if (streaming) {
-      return { apiTotal, apiCalls, chunksSaved, chunksFailed };
+      return { apiTotal, apiCalls, chunksSaved, chunksFailed, totalFetched, totalSaved };
     }
     return { orders: allOrders, apiTotal, apiCalls };
   }

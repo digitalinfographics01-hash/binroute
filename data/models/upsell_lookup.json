@@ -1,0 +1,2909 @@
+{
+  "metadata": {
+    "built_at": "2026-04-09T18:11:15.050Z",
+    "table": "upsell",
+    "dimensions": "4D",
+    "threshold": 0.05,
+    "filter": "derived_cycle=0, derived_product_role=upsell_initial",
+    "total_attempts": 18285,
+    "total_4d": 129,
+    "total_3d": 140,
+    "total_2d": 145
+  },
+  "tier_4d": {
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|CREDIT|KURV|KURV": {
+      "approval_rate": 0.8438,
+      "sample_size": 32,
+      "approved": 27,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|CREDIT|Payfac|CLIQ": {
+      "approval_rate": 0.4429,
+      "sample_size": 70,
+      "approved": 31,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|CREDIT|Payfac|KURV": {
+      "approval_rate": 0.1594,
+      "sample_size": 69,
+      "approved": 11,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|CREDIT|Payfac|PRIORITY": {
+      "approval_rate": 0.3636,
+      "sample_size": 22,
+      "approved": 8,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|DEBIT|KURV|KURV": {
+      "approval_rate": 0.902,
+      "sample_size": 102,
+      "approved": 92,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|DEBIT|Payfac|BEYOND BANCARD": {
+      "approval_rate": 0.7692,
+      "sample_size": 39,
+      "approved": 30,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|DEBIT|Payfac|CLIQ": {
+      "approval_rate": 0.6027,
+      "sample_size": 73,
+      "approved": 44,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.4748,
+      "sample_size": 139,
+      "approved": 66,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|DEBIT|Payfac|NETEVIA": {
+      "approval_rate": 0.641,
+      "sample_size": 39,
+      "approved": 25,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|DEBIT|Payfac|PRIORITY": {
+      "approval_rate": 0.6111,
+      "sample_size": 54,
+      "approved": 33,
+      "action": "allow"
+    },
+    "BANK OF MISSOURI, THE|CREDIT|KURV|KURV": {
+      "approval_rate": 0.9855,
+      "sample_size": 69,
+      "approved": 68,
+      "action": "allow"
+    },
+    "BANK OF MISSOURI, THE|CREDIT|Payfac|KURV": {
+      "approval_rate": 0.9516,
+      "sample_size": 62,
+      "approved": 59,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|CREDIT|KURV|KURV": {
+      "approval_rate": 0.8953,
+      "sample_size": 191,
+      "approved": 171,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|CREDIT|Payfac|BEYOND BANCARD": {
+      "approval_rate": 0.9322,
+      "sample_size": 59,
+      "approved": 55,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|CREDIT|Payfac|CLIQ": {
+      "approval_rate": 0.3483,
+      "sample_size": 89,
+      "approved": 31,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|CREDIT|Payfac|KURV": {
+      "approval_rate": 0.511,
+      "sample_size": 182,
+      "approved": 93,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|CREDIT|Payfac|NETEVIA": {
+      "approval_rate": 0.7568,
+      "sample_size": 37,
+      "approved": 28,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|CREDIT|Payfac|PRIORITY": {
+      "approval_rate": 0.7778,
+      "sample_size": 36,
+      "approved": 28,
+      "action": "allow"
+    },
+    "CELTIC BANK CORPORATION|CREDIT|KURV|KURV": {
+      "approval_rate": 0.9737,
+      "sample_size": 38,
+      "approved": 37,
+      "action": "allow"
+    },
+    "CELTIC BANK CORPORATION|CREDIT|Payfac|KURV": {
+      "approval_rate": 0.96,
+      "sample_size": 25,
+      "approved": 24,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|Cliq|NETEVIA": {
+      "approval_rate": 1,
+      "sample_size": 20,
+      "approved": 20,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|KURV|BEYOND BANCARD": {
+      "approval_rate": 1,
+      "sample_size": 32,
+      "approved": 32,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|KURV|CLIQ": {
+      "approval_rate": 0.96,
+      "sample_size": 25,
+      "approved": 24,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|KURV|KURV": {
+      "approval_rate": 0.9814,
+      "sample_size": 323,
+      "approved": 317,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|KURV|MERCHANT INDUSTRY": {
+      "approval_rate": 0.9722,
+      "sample_size": 36,
+      "approved": 35,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|KURV|NETEVIA": {
+      "approval_rate": 0.96,
+      "sample_size": 25,
+      "approved": 24,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|KURV|PAYARC": {
+      "approval_rate": 1,
+      "sample_size": 54,
+      "approved": 54,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|Netevia|NETEVIA": {
+      "approval_rate": 1,
+      "sample_size": 46,
+      "approved": 46,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|Netevia|PRIORITY": {
+      "approval_rate": 0.9706,
+      "sample_size": 34,
+      "approved": 33,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|Payarc|KURV": {
+      "approval_rate": 1,
+      "sample_size": 43,
+      "approved": 43,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|Payarc|PAYARC": {
+      "approval_rate": 1,
+      "sample_size": 20,
+      "approved": 20,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|Payfac|BEYOND BANCARD": {
+      "approval_rate": 1,
+      "sample_size": 91,
+      "approved": 91,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|Payfac|CELERO": {
+      "approval_rate": 1,
+      "sample_size": 20,
+      "approved": 20,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|Payfac|CLIQ": {
+      "approval_rate": 0.7917,
+      "sample_size": 96,
+      "approved": 76,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|Payfac|KURV": {
+      "approval_rate": 0.908,
+      "sample_size": 250,
+      "approved": 227,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|Payfac|MERCHANT INDUSTRY": {
+      "approval_rate": 1,
+      "sample_size": 20,
+      "approved": 20,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|Payfac|NETEVIA": {
+      "approval_rate": 0.9558,
+      "sample_size": 113,
+      "approved": 108,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|Payfac|PAYARC": {
+      "approval_rate": 1,
+      "sample_size": 23,
+      "approved": 23,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|Payfac|PAYSAFE": {
+      "approval_rate": 0.9726,
+      "sample_size": 73,
+      "approved": 71,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|Payfac|PRIORITY": {
+      "approval_rate": 0.9798,
+      "sample_size": 99,
+      "approved": 97,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|Paysafe|PAYSAFE": {
+      "approval_rate": 1,
+      "sample_size": 32,
+      "approved": 32,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CREDIT|Priority|KURV": {
+      "approval_rate": 1,
+      "sample_size": 32,
+      "approved": 32,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|DEBIT|KURV|KURV": {
+      "approval_rate": 1,
+      "sample_size": 31,
+      "approved": 31,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.9643,
+      "sample_size": 28,
+      "approved": 27,
+      "action": "allow"
+    },
+    "COASTAL COMMUNITY BANK|DEBIT|KURV|KURV": {
+      "approval_rate": 0.9565,
+      "sample_size": 23,
+      "approved": 22,
+      "action": "allow"
+    },
+    "COASTAL COMMUNITY BANK|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.75,
+      "sample_size": 20,
+      "approved": 15,
+      "action": "allow"
+    },
+    "COMERICA BANK|PREPAID|KURV|KURV": {
+      "approval_rate": 0.8783,
+      "sample_size": 115,
+      "approved": 101,
+      "action": "allow"
+    },
+    "COMERICA BANK|PREPAID|KURV|PAYARC": {
+      "approval_rate": 0.95,
+      "sample_size": 20,
+      "approved": 19,
+      "action": "allow"
+    },
+    "COMERICA BANK|PREPAID|Payfac|BEYOND BANCARD": {
+      "approval_rate": 0.5667,
+      "sample_size": 30,
+      "approved": 17,
+      "action": "allow"
+    },
+    "COMERICA BANK|PREPAID|Payfac|CLIQ": {
+      "approval_rate": 0.3933,
+      "sample_size": 89,
+      "approved": 35,
+      "action": "allow"
+    },
+    "COMERICA BANK|PREPAID|Payfac|KURV": {
+      "approval_rate": 0.321,
+      "sample_size": 162,
+      "approved": 52,
+      "action": "allow"
+    },
+    "COMERICA BANK|PREPAID|Payfac|NETEVIA": {
+      "approval_rate": 0.3913,
+      "sample_size": 46,
+      "approved": 18,
+      "action": "allow"
+    },
+    "COMERICA BANK|PREPAID|Payfac|PRIORITY": {
+      "approval_rate": 0.3878,
+      "sample_size": 49,
+      "approved": 19,
+      "action": "allow"
+    },
+    "COMERICA BANK|PREPAID|Paysafe|PAYSAFE": {
+      "approval_rate": 1,
+      "sample_size": 23,
+      "approved": 23,
+      "action": "allow"
+    },
+    "COMPUTER SERVICES, INC.|DEBIT|KURV|KURV": {
+      "approval_rate": 1,
+      "sample_size": 23,
+      "approved": 23,
+      "action": "allow"
+    },
+    "CREDIT ONE BANK, NATIONAL ASSOCIATION|CREDIT|Payfac|CLIQ": {
+      "approval_rate": 0.48,
+      "sample_size": 25,
+      "approved": 12,
+      "action": "allow"
+    },
+    "CREDIT ONE BANK, NATIONAL ASSOCIATION|CREDIT|Payfac|KURV": {
+      "approval_rate": 0.4839,
+      "sample_size": 31,
+      "approved": 15,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|CREDIT|KURV|KURV": {
+      "approval_rate": 0.8475,
+      "sample_size": 59,
+      "approved": 50,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|CREDIT|Payfac|BEYOND BANCARD": {
+      "approval_rate": 1,
+      "sample_size": 22,
+      "approved": 22,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|CREDIT|Payfac|CLIQ": {
+      "approval_rate": 0.3077,
+      "sample_size": 39,
+      "approved": 12,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|CREDIT|Payfac|KURV": {
+      "approval_rate": 0.7612,
+      "sample_size": 67,
+      "approved": 51,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|DEBIT|KURV|KURV": {
+      "approval_rate": 0.9143,
+      "sample_size": 35,
+      "approved": 32,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.7442,
+      "sample_size": 43,
+      "approved": 32,
+      "action": "allow"
+    },
+    "FIFTH THIRD BANK, THE|DEBIT|KURV|KURV": {
+      "approval_rate": 0.9796,
+      "sample_size": 49,
+      "approved": 48,
+      "action": "allow"
+    },
+    "FIFTH THIRD BANK, THE|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.9643,
+      "sample_size": 28,
+      "approved": 27,
+      "action": "allow"
+    },
+    "FIRST-CITIZENS BANK & TRUST COMPANY|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.8095,
+      "sample_size": 21,
+      "approved": 17,
+      "action": "allow"
+    },
+    "FISERV SOLUTIONS, LLC|DEBIT|KURV|KURV": {
+      "approval_rate": 1,
+      "sample_size": 25,
+      "approved": 25,
+      "action": "allow"
+    },
+    "GREEN DOT BANK DBA BONNEVILLE BANK|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.8636,
+      "sample_size": 22,
+      "approved": 19,
+      "action": "allow"
+    },
+    "HUNTINGTON NATIONAL BANK|DEBIT|KURV|KURV": {
+      "approval_rate": 0.9545,
+      "sample_size": 22,
+      "approved": 21,
+      "action": "allow"
+    },
+    "HUNTINGTON NATIONAL BANK|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.7407,
+      "sample_size": 27,
+      "approved": 20,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|CREDIT|KURV|KURV": {
+      "approval_rate": 0.7143,
+      "sample_size": 70,
+      "approved": 50,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|CREDIT|Payfac|BEYOND BANCARD": {
+      "approval_rate": 0.9792,
+      "sample_size": 48,
+      "approved": 47,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|CREDIT|Payfac|CLIQ": {
+      "approval_rate": 0.5652,
+      "sample_size": 69,
+      "approved": 39,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|CREDIT|Payfac|KURV": {
+      "approval_rate": 0.6452,
+      "sample_size": 93,
+      "approved": 60,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|CREDIT|Payfac|PRIORITY": {
+      "approval_rate": 0.9091,
+      "sample_size": 33,
+      "approved": 30,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|DEBIT|KURV|CLIQ": {
+      "approval_rate": 0.7619,
+      "sample_size": 21,
+      "approved": 16,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|DEBIT|KURV|KURV": {
+      "approval_rate": 0.8302,
+      "sample_size": 106,
+      "approved": 88,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|DEBIT|Payfac|BEYOND BANCARD": {
+      "approval_rate": 0.8571,
+      "sample_size": 56,
+      "approved": 48,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|DEBIT|Payfac|CELERO": {
+      "approval_rate": 0.359,
+      "sample_size": 39,
+      "approved": 14,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|DEBIT|Payfac|CLIQ": {
+      "approval_rate": 0.561,
+      "sample_size": 82,
+      "approved": 46,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.4843,
+      "sample_size": 159,
+      "approved": 77,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|DEBIT|Payfac|NETEVIA": {
+      "approval_rate": 0.6078,
+      "sample_size": 51,
+      "approved": 31,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|DEBIT|Payfac|PAYSAFE": {
+      "approval_rate": 1,
+      "sample_size": 23,
+      "approved": 23,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|DEBIT|Payfac|PRIORITY": {
+      "approval_rate": 0.46,
+      "sample_size": 50,
+      "approved": 23,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|DEBIT|Priority|KURV": {
+      "approval_rate": 0.9048,
+      "sample_size": 21,
+      "approved": 19,
+      "action": "allow"
+    },
+    "KEYBANK NATIONAL ASSOCIATION|DEBIT|Payfac|KURV": {
+      "approval_rate": 1,
+      "sample_size": 21,
+      "approved": 21,
+      "action": "allow"
+    },
+    "PATHWARD, N.A.|PREPAID|KURV|KURV": {
+      "approval_rate": 0.8571,
+      "sample_size": 21,
+      "approved": 18,
+      "action": "allow"
+    },
+    "PNC BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|CLIQ": {
+      "approval_rate": 0.6154,
+      "sample_size": 26,
+      "approved": 16,
+      "action": "allow"
+    },
+    "PNC BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.4565,
+      "sample_size": 46,
+      "approved": 21,
+      "action": "allow"
+    },
+    "PNC BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|PRIORITY": {
+      "approval_rate": 0.44,
+      "sample_size": 25,
+      "approved": 11,
+      "action": "allow"
+    },
+    "STATE EMPLOYEES' CREDIT UNION|DEBIT|KURV|KURV": {
+      "approval_rate": 0.95,
+      "sample_size": 20,
+      "approved": 19,
+      "action": "allow"
+    },
+    "STRIDE BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|CLIQ": {
+      "approval_rate": 0.4583,
+      "sample_size": 24,
+      "approved": 11,
+      "action": "allow"
+    },
+    "STRIDE BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.4667,
+      "sample_size": 30,
+      "approved": 14,
+      "action": "allow"
+    },
+    "SUTTON BANK|PREPAID|KURV|CLIQ": {
+      "approval_rate": 0.3333,
+      "sample_size": 24,
+      "approved": 8,
+      "action": "allow"
+    },
+    "SUTTON BANK|PREPAID|KURV|KURV": {
+      "approval_rate": 0.75,
+      "sample_size": 68,
+      "approved": 51,
+      "action": "allow"
+    },
+    "SUTTON BANK|PREPAID|Payfac|BEYOND BANCARD": {
+      "approval_rate": 0.3077,
+      "sample_size": 39,
+      "approved": 12,
+      "action": "allow"
+    },
+    "SUTTON BANK|PREPAID|Payfac|CELERO": {
+      "approval_rate": 0.0588,
+      "sample_size": 51,
+      "approved": 3,
+      "action": "allow"
+    },
+    "SUTTON BANK|PREPAID|Payfac|CLIQ": {
+      "approval_rate": 0.0505,
+      "sample_size": 99,
+      "approved": 5,
+      "action": "allow"
+    },
+    "SUTTON BANK|PREPAID|Payfac|KURV": {
+      "approval_rate": 0.141,
+      "sample_size": 234,
+      "approved": 33,
+      "action": "allow"
+    },
+    "SUTTON BANK|PREPAID|Payfac|NETEVIA": {
+      "approval_rate": 0.2281,
+      "sample_size": 57,
+      "approved": 13,
+      "action": "allow"
+    },
+    "SUTTON BANK|PREPAID|Payfac|PRIORITY": {
+      "approval_rate": 0.038,
+      "sample_size": 79,
+      "approved": 3,
+      "action": "hard_exclude"
+    },
+    "SUTTON BANK|PREPAID|Paysafe|PAYSAFE": {
+      "approval_rate": 1,
+      "sample_size": 39,
+      "approved": 39,
+      "action": "allow"
+    },
+    "SYNCHRONY BANK|CREDIT|KURV|KURV": {
+      "approval_rate": 0.96,
+      "sample_size": 100,
+      "approved": 96,
+      "action": "allow"
+    },
+    "SYNCHRONY BANK|CREDIT|Payfac|CLIQ": {
+      "approval_rate": 0.6,
+      "sample_size": 65,
+      "approved": 39,
+      "action": "allow"
+    },
+    "SYNCHRONY BANK|CREDIT|Payfac|KURV": {
+      "approval_rate": 0.8741,
+      "sample_size": 135,
+      "approved": 118,
+      "action": "allow"
+    },
+    "TD BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.4783,
+      "sample_size": 23,
+      "approved": 11,
+      "action": "allow"
+    },
+    "THE BANCORP BANK NATIONAL ASSOCIATION|DEBIT|KURV|KURV": {
+      "approval_rate": 0.8846,
+      "sample_size": 52,
+      "approved": 46,
+      "action": "allow"
+    },
+    "THE BANCORP BANK NATIONAL ASSOCIATION|DEBIT|Payfac|BEYOND BANCARD": {
+      "approval_rate": 1,
+      "sample_size": 23,
+      "approved": 23,
+      "action": "allow"
+    },
+    "THE BANCORP BANK NATIONAL ASSOCIATION|DEBIT|Payfac|CLIQ": {
+      "approval_rate": 0.625,
+      "sample_size": 32,
+      "approved": 20,
+      "action": "allow"
+    },
+    "THE BANCORP BANK NATIONAL ASSOCIATION|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.8689,
+      "sample_size": 61,
+      "approved": 53,
+      "action": "allow"
+    },
+    "THE BANCORP BANK, NATIONAL ASSOCIATION|DEBIT|KURV|KURV": {
+      "approval_rate": 0.8421,
+      "sample_size": 57,
+      "approved": 48,
+      "action": "allow"
+    },
+    "THE BANCORP BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|CLIQ": {
+      "approval_rate": 0.4516,
+      "sample_size": 31,
+      "approved": 14,
+      "action": "allow"
+    },
+    "THE BANCORP BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.4314,
+      "sample_size": 51,
+      "approved": 22,
+      "action": "allow"
+    },
+    "TRUIST BANK|DEBIT|Payfac|CLIQ": {
+      "approval_rate": 0.2692,
+      "sample_size": 26,
+      "approved": 7,
+      "action": "allow"
+    },
+    "TRUIST BANK|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.0926,
+      "sample_size": 54,
+      "approved": 5,
+      "action": "allow"
+    },
+    "U.S. BANK NATIONAL ASSOCIATION|DEBIT|Payfac|CLIQ": {
+      "approval_rate": 0.4375,
+      "sample_size": 32,
+      "approved": 14,
+      "action": "allow"
+    },
+    "U.S. BANK NATIONAL ASSOCIATION|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.0345,
+      "sample_size": 29,
+      "approved": 1,
+      "action": "soft_downrank"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|CREDIT|KURV|KURV": {
+      "approval_rate": 0.95,
+      "sample_size": 20,
+      "approved": 19,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|CREDIT|Payfac|CLIQ": {
+      "approval_rate": 0.5,
+      "sample_size": 22,
+      "approved": 11,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|CREDIT|Payfac|KURV": {
+      "approval_rate": 0.3,
+      "sample_size": 50,
+      "approved": 15,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|DEBIT|KURV|KURV": {
+      "approval_rate": 0.8804,
+      "sample_size": 92,
+      "approved": 81,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|BEYOND BANCARD": {
+      "approval_rate": 0.3158,
+      "sample_size": 38,
+      "approved": 12,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|CELERO": {
+      "approval_rate": 0.0857,
+      "sample_size": 35,
+      "approved": 3,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|CLIQ": {
+      "approval_rate": 0.2136,
+      "sample_size": 103,
+      "approved": 22,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.1399,
+      "sample_size": 193,
+      "approved": 27,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|NETEVIA": {
+      "approval_rate": 0.2,
+      "sample_size": 40,
+      "approved": 8,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|PRIORITY": {
+      "approval_rate": 0.0794,
+      "sample_size": 63,
+      "approved": 5,
+      "action": "allow"
+    },
+    "WOODFOREST NATIONAL BANK|DEBIT|KURV|KURV": {
+      "approval_rate": 0.9818,
+      "sample_size": 55,
+      "approved": 54,
+      "action": "allow"
+    },
+    "WOODFOREST NATIONAL BANK|DEBIT|Payfac|KURV": {
+      "approval_rate": 0.8929,
+      "sample_size": 28,
+      "approved": 25,
+      "action": "allow"
+    }
+  },
+  "tier_3d": {
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|KURV|KURV": {
+      "approval_rate": 0.8897,
+      "sample_size": 136,
+      "approved": 121,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|Netevia|NETEVIA": {
+      "approval_rate": 0.95,
+      "sample_size": 20,
+      "approved": 19,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|Netevia|PRIORITY": {
+      "approval_rate": 0.913,
+      "sample_size": 23,
+      "approved": 21,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|Payfac|BEYOND BANCARD": {
+      "approval_rate": 0.7544,
+      "sample_size": 57,
+      "approved": 43,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|Payfac|CELERO": {
+      "approval_rate": 0.2647,
+      "sample_size": 34,
+      "approved": 9,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|Payfac|CLIQ": {
+      "approval_rate": 0.5245,
+      "sample_size": 143,
+      "approved": 75,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|Payfac|KURV": {
+      "approval_rate": 0.3702,
+      "sample_size": 208,
+      "approved": 77,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|Payfac|NETEVIA": {
+      "approval_rate": 0.549,
+      "sample_size": 51,
+      "approved": 28,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|Payfac|PAYSAFE": {
+      "approval_rate": 0.92,
+      "sample_size": 25,
+      "approved": 23,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|Payfac|PRIORITY": {
+      "approval_rate": 0.5395,
+      "sample_size": 76,
+      "approved": 41,
+      "action": "allow"
+    },
+    "BANK OF MISSOURI, THE|KURV|KURV": {
+      "approval_rate": 0.9855,
+      "sample_size": 69,
+      "approved": 68,
+      "action": "allow"
+    },
+    "BANK OF MISSOURI, THE|Payfac|KURV": {
+      "approval_rate": 0.9516,
+      "sample_size": 62,
+      "approved": 59,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|KURV|KURV": {
+      "approval_rate": 0.8976,
+      "sample_size": 205,
+      "approved": 184,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|Payfac|BEYOND BANCARD": {
+      "approval_rate": 0.9365,
+      "sample_size": 63,
+      "approved": 59,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|Payfac|CLIQ": {
+      "approval_rate": 0.337,
+      "sample_size": 92,
+      "approved": 31,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|Payfac|KURV": {
+      "approval_rate": 0.5337,
+      "sample_size": 193,
+      "approved": 103,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|Payfac|NETEVIA": {
+      "approval_rate": 0.775,
+      "sample_size": 40,
+      "approved": 31,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|Payfac|PRIORITY": {
+      "approval_rate": 0.7895,
+      "sample_size": 38,
+      "approved": 30,
+      "action": "allow"
+    },
+    "CELTIC BANK CORPORATION|KURV|KURV": {
+      "approval_rate": 0.9737,
+      "sample_size": 38,
+      "approved": 37,
+      "action": "allow"
+    },
+    "CELTIC BANK CORPORATION|Payfac|KURV": {
+      "approval_rate": 0.96,
+      "sample_size": 25,
+      "approved": 24,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|Cliq|NETEVIA": {
+      "approval_rate": 1,
+      "sample_size": 26,
+      "approved": 26,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|KURV|BEYOND BANCARD": {
+      "approval_rate": 1,
+      "sample_size": 35,
+      "approved": 35,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|KURV|CLIQ": {
+      "approval_rate": 0.9615,
+      "sample_size": 26,
+      "approved": 25,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|KURV|KURV": {
+      "approval_rate": 0.9831,
+      "sample_size": 354,
+      "approved": 348,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|KURV|MERCHANT INDUSTRY": {
+      "approval_rate": 0.9737,
+      "sample_size": 38,
+      "approved": 37,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|KURV|NETEVIA": {
+      "approval_rate": 0.9615,
+      "sample_size": 26,
+      "approved": 25,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|KURV|PAYARC": {
+      "approval_rate": 1,
+      "sample_size": 58,
+      "approved": 58,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|Netevia|NETEVIA": {
+      "approval_rate": 1,
+      "sample_size": 51,
+      "approved": 51,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|Netevia|PRIORITY": {
+      "approval_rate": 0.973,
+      "sample_size": 37,
+      "approved": 36,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|Payarc|KURV": {
+      "approval_rate": 1,
+      "sample_size": 45,
+      "approved": 45,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|Payarc|PAYARC": {
+      "approval_rate": 1,
+      "sample_size": 20,
+      "approved": 20,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|Payfac|BEYOND BANCARD": {
+      "approval_rate": 1,
+      "sample_size": 97,
+      "approved": 97,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|Payfac|CELERO": {
+      "approval_rate": 1,
+      "sample_size": 22,
+      "approved": 22,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|Payfac|CLIQ": {
+      "approval_rate": 0.7921,
+      "sample_size": 101,
+      "approved": 80,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|Payfac|KURV": {
+      "approval_rate": 0.9137,
+      "sample_size": 278,
+      "approved": 254,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|Payfac|MERCHANT INDUSTRY": {
+      "approval_rate": 1,
+      "sample_size": 22,
+      "approved": 22,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|Payfac|NETEVIA": {
+      "approval_rate": 0.9412,
+      "sample_size": 119,
+      "approved": 112,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|Payfac|PAYARC": {
+      "approval_rate": 1,
+      "sample_size": 25,
+      "approved": 25,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|Payfac|PAYSAFE": {
+      "approval_rate": 0.9753,
+      "sample_size": 81,
+      "approved": 79,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|Payfac|PRIORITY": {
+      "approval_rate": 0.9808,
+      "sample_size": 104,
+      "approved": 102,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|Paysafe|PAYSAFE": {
+      "approval_rate": 1,
+      "sample_size": 33,
+      "approved": 33,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|Priority|KURV": {
+      "approval_rate": 1,
+      "sample_size": 32,
+      "approved": 32,
+      "action": "allow"
+    },
+    "COASTAL COMMUNITY BANK|KURV|KURV": {
+      "approval_rate": 0.9655,
+      "sample_size": 29,
+      "approved": 28,
+      "action": "allow"
+    },
+    "COASTAL COMMUNITY BANK|Payfac|KURV": {
+      "approval_rate": 0.75,
+      "sample_size": 20,
+      "approved": 15,
+      "action": "allow"
+    },
+    "COMERICA BANK|KURV|KURV": {
+      "approval_rate": 0.8833,
+      "sample_size": 120,
+      "approved": 106,
+      "action": "allow"
+    },
+    "COMERICA BANK|KURV|PAYARC": {
+      "approval_rate": 0.95,
+      "sample_size": 20,
+      "approved": 19,
+      "action": "allow"
+    },
+    "COMERICA BANK|Payfac|BEYOND BANCARD": {
+      "approval_rate": 0.5667,
+      "sample_size": 30,
+      "approved": 17,
+      "action": "allow"
+    },
+    "COMERICA BANK|Payfac|CLIQ": {
+      "approval_rate": 0.3933,
+      "sample_size": 89,
+      "approved": 35,
+      "action": "allow"
+    },
+    "COMERICA BANK|Payfac|KURV": {
+      "approval_rate": 0.3252,
+      "sample_size": 163,
+      "approved": 53,
+      "action": "allow"
+    },
+    "COMERICA BANK|Payfac|NETEVIA": {
+      "approval_rate": 0.3913,
+      "sample_size": 46,
+      "approved": 18,
+      "action": "allow"
+    },
+    "COMERICA BANK|Payfac|PRIORITY": {
+      "approval_rate": 0.3878,
+      "sample_size": 49,
+      "approved": 19,
+      "action": "allow"
+    },
+    "COMERICA BANK|Paysafe|PAYSAFE": {
+      "approval_rate": 1,
+      "sample_size": 23,
+      "approved": 23,
+      "action": "allow"
+    },
+    "COMPUTER SERVICES, INC.|KURV|KURV": {
+      "approval_rate": 1,
+      "sample_size": 23,
+      "approved": 23,
+      "action": "allow"
+    },
+    "CREDIT ONE BANK, NATIONAL ASSOCIATION|Payfac|CLIQ": {
+      "approval_rate": 0.48,
+      "sample_size": 25,
+      "approved": 12,
+      "action": "allow"
+    },
+    "CREDIT ONE BANK, NATIONAL ASSOCIATION|Payfac|KURV": {
+      "approval_rate": 0.4839,
+      "sample_size": 31,
+      "approved": 15,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|KURV|KURV": {
+      "approval_rate": 0.8723,
+      "sample_size": 94,
+      "approved": 82,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|Netevia|NETEVIA": {
+      "approval_rate": 0.9048,
+      "sample_size": 21,
+      "approved": 19,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|Payfac|BEYOND BANCARD": {
+      "approval_rate": 0.9697,
+      "sample_size": 33,
+      "approved": 32,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|Payfac|CLIQ": {
+      "approval_rate": 0.4364,
+      "sample_size": 55,
+      "approved": 24,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|Payfac|KURV": {
+      "approval_rate": 0.7545,
+      "sample_size": 110,
+      "approved": 83,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|Payfac|NETEVIA": {
+      "approval_rate": 0.9643,
+      "sample_size": 28,
+      "approved": 27,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|Payfac|PRIORITY": {
+      "approval_rate": 0.9583,
+      "sample_size": 24,
+      "approved": 23,
+      "action": "allow"
+    },
+    "FIFTH THIRD BANK, THE|KURV|KURV": {
+      "approval_rate": 0.9655,
+      "sample_size": 58,
+      "approved": 56,
+      "action": "allow"
+    },
+    "FIFTH THIRD BANK, THE|Payfac|KURV": {
+      "approval_rate": 0.8378,
+      "sample_size": 37,
+      "approved": 31,
+      "action": "allow"
+    },
+    "FIRST-CITIZENS BANK & TRUST COMPANY|KURV|KURV": {
+      "approval_rate": 1,
+      "sample_size": 20,
+      "approved": 20,
+      "action": "allow"
+    },
+    "FIRST-CITIZENS BANK & TRUST COMPANY|Payfac|KURV": {
+      "approval_rate": 0.7917,
+      "sample_size": 24,
+      "approved": 19,
+      "action": "allow"
+    },
+    "FISERV SOLUTIONS, LLC|KURV|KURV": {
+      "approval_rate": 1,
+      "sample_size": 25,
+      "approved": 25,
+      "action": "allow"
+    },
+    "GREEN DOT BANK DBA BONNEVILLE BANK|Payfac|KURV": {
+      "approval_rate": 0.8214,
+      "sample_size": 28,
+      "approved": 23,
+      "action": "allow"
+    },
+    "HUNTINGTON NATIONAL BANK|KURV|KURV": {
+      "approval_rate": 0.9697,
+      "sample_size": 33,
+      "approved": 32,
+      "action": "allow"
+    },
+    "HUNTINGTON NATIONAL BANK|Payfac|KURV": {
+      "approval_rate": 0.75,
+      "sample_size": 28,
+      "approved": 21,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|KURV|BEYOND BANCARD": {
+      "approval_rate": 0.9394,
+      "sample_size": 33,
+      "approved": 31,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|KURV|CLIQ": {
+      "approval_rate": 0.6176,
+      "sample_size": 34,
+      "approved": 21,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|KURV|KURV": {
+      "approval_rate": 0.7865,
+      "sample_size": 178,
+      "approved": 140,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|KURV|PAYARC": {
+      "approval_rate": 0.9655,
+      "sample_size": 29,
+      "approved": 28,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|KURV|PRIORITY": {
+      "approval_rate": 0.75,
+      "sample_size": 24,
+      "approved": 18,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|Netevia|NETEVIA": {
+      "approval_rate": 0.6818,
+      "sample_size": 22,
+      "approved": 15,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|Netevia|PRIORITY": {
+      "approval_rate": 0.8,
+      "sample_size": 20,
+      "approved": 16,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|Payfac|BEYOND BANCARD": {
+      "approval_rate": 0.9135,
+      "sample_size": 104,
+      "approved": 95,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|Payfac|CELERO": {
+      "approval_rate": 0.4091,
+      "sample_size": 44,
+      "approved": 18,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|Payfac|CLIQ": {
+      "approval_rate": 0.5629,
+      "sample_size": 151,
+      "approved": 85,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|Payfac|KURV": {
+      "approval_rate": 0.5437,
+      "sample_size": 252,
+      "approved": 137,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|Payfac|NETEVIA": {
+      "approval_rate": 0.6714,
+      "sample_size": 70,
+      "approved": 47,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|Payfac|PAYARC": {
+      "approval_rate": 0.9091,
+      "sample_size": 22,
+      "approved": 20,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|Payfac|PAYSAFE": {
+      "approval_rate": 0.973,
+      "sample_size": 37,
+      "approved": 36,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|Payfac|PRIORITY": {
+      "approval_rate": 0.6386,
+      "sample_size": 83,
+      "approved": 53,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|Priority|KURV": {
+      "approval_rate": 0.913,
+      "sample_size": 23,
+      "approved": 21,
+      "action": "allow"
+    },
+    "KEYBANK NATIONAL ASSOCIATION|KURV|KURV": {
+      "approval_rate": 1,
+      "sample_size": 26,
+      "approved": 26,
+      "action": "allow"
+    },
+    "KEYBANK NATIONAL ASSOCIATION|Payfac|KURV": {
+      "approval_rate": 0.9583,
+      "sample_size": 24,
+      "approved": 23,
+      "action": "allow"
+    },
+    "NAVY FEDERAL CREDIT UNION|Payfac|CLIQ": {
+      "approval_rate": 0.5238,
+      "sample_size": 21,
+      "approved": 11,
+      "action": "allow"
+    },
+    "NAVY FEDERAL CREDIT UNION|Payfac|KURV": {
+      "approval_rate": 0.3462,
+      "sample_size": 26,
+      "approved": 9,
+      "action": "allow"
+    },
+    "PATHWARD, N.A.|KURV|KURV": {
+      "approval_rate": 0.8929,
+      "sample_size": 28,
+      "approved": 25,
+      "action": "allow"
+    },
+    "PATHWARD, N.A.|Payfac|KURV": {
+      "approval_rate": 0.5455,
+      "sample_size": 22,
+      "approved": 12,
+      "action": "allow"
+    },
+    "PATHWARD, NATIONAL ASSOCIATION|KURV|KURV": {
+      "approval_rate": 0.8696,
+      "sample_size": 23,
+      "approved": 20,
+      "action": "allow"
+    },
+    "PATHWARD, NATIONAL ASSOCIATION|Payfac|KURV": {
+      "approval_rate": 0.5758,
+      "sample_size": 33,
+      "approved": 19,
+      "action": "allow"
+    },
+    "PNC BANK, NATIONAL ASSOCIATION|Payfac|CLIQ": {
+      "approval_rate": 0.6154,
+      "sample_size": 26,
+      "approved": 16,
+      "action": "allow"
+    },
+    "PNC BANK, NATIONAL ASSOCIATION|Payfac|KURV": {
+      "approval_rate": 0.4681,
+      "sample_size": 47,
+      "approved": 22,
+      "action": "allow"
+    },
+    "PNC BANK, NATIONAL ASSOCIATION|Payfac|PRIORITY": {
+      "approval_rate": 0.44,
+      "sample_size": 25,
+      "approved": 11,
+      "action": "allow"
+    },
+    "REGIONS BANK|KURV|KURV": {
+      "approval_rate": 0.6333,
+      "sample_size": 30,
+      "approved": 19,
+      "action": "allow"
+    },
+    "REGIONS BANK|Payfac|CLIQ": {
+      "approval_rate": 0.6957,
+      "sample_size": 23,
+      "approved": 16,
+      "action": "allow"
+    },
+    "REGIONS BANK|Payfac|KURV": {
+      "approval_rate": 0.4138,
+      "sample_size": 29,
+      "approved": 12,
+      "action": "allow"
+    },
+    "STATE EMPLOYEES' CREDIT UNION|KURV|KURV": {
+      "approval_rate": 0.9524,
+      "sample_size": 21,
+      "approved": 20,
+      "action": "allow"
+    },
+    "STRIDE BANK, NATIONAL ASSOCIATION|KURV|KURV": {
+      "approval_rate": 0.8929,
+      "sample_size": 28,
+      "approved": 25,
+      "action": "allow"
+    },
+    "STRIDE BANK, NATIONAL ASSOCIATION|Payfac|CLIQ": {
+      "approval_rate": 0.3947,
+      "sample_size": 38,
+      "approved": 15,
+      "action": "allow"
+    },
+    "STRIDE BANK, NATIONAL ASSOCIATION|Payfac|KURV": {
+      "approval_rate": 0.4318,
+      "sample_size": 44,
+      "approved": 19,
+      "action": "allow"
+    },
+    "SUTTON BANK|KURV|CLIQ": {
+      "approval_rate": 0.3333,
+      "sample_size": 24,
+      "approved": 8,
+      "action": "allow"
+    },
+    "SUTTON BANK|KURV|KURV": {
+      "approval_rate": 0.7606,
+      "sample_size": 71,
+      "approved": 54,
+      "action": "allow"
+    },
+    "SUTTON BANK|Payfac|BEYOND BANCARD": {
+      "approval_rate": 0.3415,
+      "sample_size": 41,
+      "approved": 14,
+      "action": "allow"
+    },
+    "SUTTON BANK|Payfac|CELERO": {
+      "approval_rate": 0.0588,
+      "sample_size": 51,
+      "approved": 3,
+      "action": "allow"
+    },
+    "SUTTON BANK|Payfac|CLIQ": {
+      "approval_rate": 0.068,
+      "sample_size": 103,
+      "approved": 7,
+      "action": "allow"
+    },
+    "SUTTON BANK|Payfac|KURV": {
+      "approval_rate": 0.1829,
+      "sample_size": 246,
+      "approved": 45,
+      "action": "allow"
+    },
+    "SUTTON BANK|Payfac|NETEVIA": {
+      "approval_rate": 0.3016,
+      "sample_size": 63,
+      "approved": 19,
+      "action": "allow"
+    },
+    "SUTTON BANK|Payfac|PRIORITY": {
+      "approval_rate": 0.0952,
+      "sample_size": 84,
+      "approved": 8,
+      "action": "allow"
+    },
+    "SUTTON BANK|Paysafe|PAYSAFE": {
+      "approval_rate": 1,
+      "sample_size": 39,
+      "approved": 39,
+      "action": "allow"
+    },
+    "SYNCHRONY BANK|KURV|KURV": {
+      "approval_rate": 0.96,
+      "sample_size": 100,
+      "approved": 96,
+      "action": "allow"
+    },
+    "SYNCHRONY BANK|Payfac|CLIQ": {
+      "approval_rate": 0.6,
+      "sample_size": 65,
+      "approved": 39,
+      "action": "allow"
+    },
+    "SYNCHRONY BANK|Payfac|KURV": {
+      "approval_rate": 0.8741,
+      "sample_size": 135,
+      "approved": 118,
+      "action": "allow"
+    },
+    "TD BANK, NATIONAL ASSOCIATION|Payfac|KURV": {
+      "approval_rate": 0.52,
+      "sample_size": 25,
+      "approved": 13,
+      "action": "allow"
+    },
+    "THE BANCORP BANK NATIONAL ASSOCIATION|KURV|KURV": {
+      "approval_rate": 0.8727,
+      "sample_size": 55,
+      "approved": 48,
+      "action": "allow"
+    },
+    "THE BANCORP BANK NATIONAL ASSOCIATION|Payfac|BEYOND BANCARD": {
+      "approval_rate": 0.96,
+      "sample_size": 25,
+      "approved": 24,
+      "action": "allow"
+    },
+    "THE BANCORP BANK NATIONAL ASSOCIATION|Payfac|CLIQ": {
+      "approval_rate": 0.6061,
+      "sample_size": 33,
+      "approved": 20,
+      "action": "allow"
+    },
+    "THE BANCORP BANK NATIONAL ASSOCIATION|Payfac|KURV": {
+      "approval_rate": 0.8308,
+      "sample_size": 65,
+      "approved": 54,
+      "action": "allow"
+    },
+    "THE BANCORP BANK, NATIONAL ASSOCIATION|KURV|KURV": {
+      "approval_rate": 0.8676,
+      "sample_size": 68,
+      "approved": 59,
+      "action": "allow"
+    },
+    "THE BANCORP BANK, NATIONAL ASSOCIATION|Payfac|CLIQ": {
+      "approval_rate": 0.5238,
+      "sample_size": 42,
+      "approved": 22,
+      "action": "allow"
+    },
+    "THE BANCORP BANK, NATIONAL ASSOCIATION|Payfac|KURV": {
+      "approval_rate": 0.4286,
+      "sample_size": 70,
+      "approved": 30,
+      "action": "allow"
+    },
+    "THE BANCORP BANK, NATIONAL ASSOCIATION|Payfac|PRIORITY": {
+      "approval_rate": 0.619,
+      "sample_size": 21,
+      "approved": 13,
+      "action": "allow"
+    },
+    "TRUIST BANK|Payfac|CLIQ": {
+      "approval_rate": 0.2692,
+      "sample_size": 26,
+      "approved": 7,
+      "action": "allow"
+    },
+    "TRUIST BANK|Payfac|KURV": {
+      "approval_rate": 0.0926,
+      "sample_size": 54,
+      "approved": 5,
+      "action": "allow"
+    },
+    "U.S. BANK NATIONAL ASSOCIATION|Payfac|CLIQ": {
+      "approval_rate": 0.3137,
+      "sample_size": 51,
+      "approved": 16,
+      "action": "allow"
+    },
+    "U.S. BANK NATIONAL ASSOCIATION|Payfac|KURV": {
+      "approval_rate": 0.2222,
+      "sample_size": 45,
+      "approved": 10,
+      "action": "allow"
+    },
+    "U.S. BANK NATIONAL ASSOCIATION|Payfac|PRIORITY": {
+      "approval_rate": 0.3,
+      "sample_size": 20,
+      "approved": 6,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|KURV|KURV": {
+      "approval_rate": 0.8929,
+      "sample_size": 112,
+      "approved": 100,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|Payfac|BEYOND BANCARD": {
+      "approval_rate": 0.3095,
+      "sample_size": 42,
+      "approved": 13,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|Payfac|CELERO": {
+      "approval_rate": 0.119,
+      "sample_size": 42,
+      "approved": 5,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|Payfac|CLIQ": {
+      "approval_rate": 0.264,
+      "sample_size": 125,
+      "approved": 33,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|Payfac|KURV": {
+      "approval_rate": 0.1728,
+      "sample_size": 243,
+      "approved": 42,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|Payfac|MERCHANT INDUSTRY": {
+      "approval_rate": 0.15,
+      "sample_size": 20,
+      "approved": 3,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|Payfac|NETEVIA": {
+      "approval_rate": 0.2979,
+      "sample_size": 47,
+      "approved": 14,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|Payfac|PRIORITY": {
+      "approval_rate": 0.0933,
+      "sample_size": 75,
+      "approved": 7,
+      "action": "allow"
+    },
+    "WOODFOREST NATIONAL BANK|KURV|KURV": {
+      "approval_rate": 0.9818,
+      "sample_size": 55,
+      "approved": 54,
+      "action": "allow"
+    },
+    "WOODFOREST NATIONAL BANK|Payfac|KURV": {
+      "approval_rate": 0.8929,
+      "sample_size": 28,
+      "approved": 25,
+      "action": "allow"
+    }
+  },
+  "tier_2d": {
+    "ALLY BANK|KURV": {
+      "approval_rate": 0.9688,
+      "sample_size": 32,
+      "approved": 31,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|BEYOND BANCARD": {
+      "approval_rate": 0.7857,
+      "sample_size": 70,
+      "approved": 55,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|CELERO": {
+      "approval_rate": 0.5714,
+      "sample_size": 63,
+      "approved": 36,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|CLIQ": {
+      "approval_rate": 0.5491,
+      "sample_size": 173,
+      "approved": 95,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|KURV": {
+      "approval_rate": 0.6234,
+      "sample_size": 393,
+      "approved": 245,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|MERCHANT INDUSTRY": {
+      "approval_rate": 0.6286,
+      "sample_size": 35,
+      "approved": 22,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|NETEVIA": {
+      "approval_rate": 0.7238,
+      "sample_size": 105,
+      "approved": 76,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|PAYARC": {
+      "approval_rate": 1,
+      "sample_size": 27,
+      "approved": 27,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|PAYSAFE": {
+      "approval_rate": 0.9423,
+      "sample_size": 52,
+      "approved": 49,
+      "action": "allow"
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|PRIORITY": {
+      "approval_rate": 0.687,
+      "sample_size": 131,
+      "approved": 90,
+      "action": "allow"
+    },
+    "BANK OF MISSOURI, THE|KURV": {
+      "approval_rate": 0.973,
+      "sample_size": 148,
+      "approved": 144,
+      "action": "allow"
+    },
+    "BANK OF MISSOURI, THE|NETEVIA": {
+      "approval_rate": 0.9565,
+      "sample_size": 23,
+      "approved": 22,
+      "action": "allow"
+    },
+    "BARCLAYS BANK DELAWARE|CLIQ": {
+      "approval_rate": 0,
+      "sample_size": 20,
+      "approved": 0,
+      "action": "soft_downrank"
+    },
+    "BARCLAYS BANK DELAWARE|KURV": {
+      "approval_rate": 0.6829,
+      "sample_size": 41,
+      "approved": 28,
+      "action": "allow"
+    },
+    "BMO BANK NATIONAL ASSOCIATION|KURV": {
+      "approval_rate": 0.9268,
+      "sample_size": 41,
+      "approved": 38,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|BEYOND BANCARD": {
+      "approval_rate": 0.9487,
+      "sample_size": 78,
+      "approved": 74,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|CELERO": {
+      "approval_rate": 0.6154,
+      "sample_size": 26,
+      "approved": 16,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|CLIQ": {
+      "approval_rate": 0.4454,
+      "sample_size": 119,
+      "approved": 53,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|KURV": {
+      "approval_rate": 0.75,
+      "sample_size": 448,
+      "approved": 336,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|MERCHANT INDUSTRY": {
+      "approval_rate": 0.9259,
+      "sample_size": 27,
+      "approved": 25,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|NETEVIA": {
+      "approval_rate": 0.8434,
+      "sample_size": 83,
+      "approved": 70,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|PAYARC": {
+      "approval_rate": 1,
+      "sample_size": 40,
+      "approved": 40,
+      "action": "allow"
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|PRIORITY": {
+      "approval_rate": 0.881,
+      "sample_size": 84,
+      "approved": 74,
+      "action": "allow"
+    },
+    "CELTIC BANK CORPORATION|KURV": {
+      "approval_rate": 0.973,
+      "sample_size": 74,
+      "approved": 72,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|BEYOND BANCARD": {
+      "approval_rate": 1,
+      "sample_size": 146,
+      "approved": 146,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CELERO": {
+      "approval_rate": 0.9881,
+      "sample_size": 84,
+      "approved": 83,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|CLIQ": {
+      "approval_rate": 0.8503,
+      "sample_size": 147,
+      "approved": 125,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|KURV": {
+      "approval_rate": 0.9579,
+      "sample_size": 736,
+      "approved": 705,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|MERCHANT INDUSTRY": {
+      "approval_rate": 0.9733,
+      "sample_size": 75,
+      "approved": 73,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|NETEVIA": {
+      "approval_rate": 0.9643,
+      "sample_size": 252,
+      "approved": 243,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|PAYARC": {
+      "approval_rate": 1,
+      "sample_size": 108,
+      "approved": 108,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|PAYSAFE": {
+      "approval_rate": 0.9851,
+      "sample_size": 134,
+      "approved": 132,
+      "action": "allow"
+    },
+    "CITIBANK N.A.|PRIORITY": {
+      "approval_rate": 0.9783,
+      "sample_size": 184,
+      "approved": 180,
+      "action": "allow"
+    },
+    "COASTAL COMMUNITY BANK|KURV": {
+      "approval_rate": 0.8966,
+      "sample_size": 58,
+      "approved": 52,
+      "action": "allow"
+    },
+    "COASTAL COMMUNITY BANK|PAYSAFE": {
+      "approval_rate": 1,
+      "sample_size": 20,
+      "approved": 20,
+      "action": "allow"
+    },
+    "COMENITY CAPITAL BANK|KURV": {
+      "approval_rate": 0.6579,
+      "sample_size": 38,
+      "approved": 25,
+      "action": "allow"
+    },
+    "COMERICA BANK|BEYOND BANCARD": {
+      "approval_rate": 0.6486,
+      "sample_size": 37,
+      "approved": 24,
+      "action": "allow"
+    },
+    "COMERICA BANK|CELERO": {
+      "approval_rate": 0.3462,
+      "sample_size": 26,
+      "approved": 9,
+      "action": "allow"
+    },
+    "COMERICA BANK|CLIQ": {
+      "approval_rate": 0.4959,
+      "sample_size": 121,
+      "approved": 60,
+      "action": "allow"
+    },
+    "COMERICA BANK|KURV": {
+      "approval_rate": 0.5987,
+      "sample_size": 309,
+      "approved": 185,
+      "action": "allow"
+    },
+    "COMERICA BANK|MERCHANT INDUSTRY": {
+      "approval_rate": 0.3929,
+      "sample_size": 28,
+      "approved": 11,
+      "action": "allow"
+    },
+    "COMERICA BANK|NETEVIA": {
+      "approval_rate": 0.6593,
+      "sample_size": 91,
+      "approved": 60,
+      "action": "allow"
+    },
+    "COMERICA BANK|PAYARC": {
+      "approval_rate": 0.8929,
+      "sample_size": 28,
+      "approved": 25,
+      "action": "allow"
+    },
+    "COMERICA BANK|PAYSAFE": {
+      "approval_rate": 0.9459,
+      "sample_size": 37,
+      "approved": 35,
+      "action": "allow"
+    },
+    "COMERICA BANK|PRIORITY": {
+      "approval_rate": 0.5075,
+      "sample_size": 67,
+      "approved": 34,
+      "action": "allow"
+    },
+    "COMPUTER SERVICES, INC.|KURV": {
+      "approval_rate": 0.9355,
+      "sample_size": 31,
+      "approved": 29,
+      "action": "allow"
+    },
+    "CREDIT ONE BANK, NATIONAL ASSOCIATION|CLIQ": {
+      "approval_rate": 0.4828,
+      "sample_size": 29,
+      "approved": 14,
+      "action": "allow"
+    },
+    "CREDIT ONE BANK, NATIONAL ASSOCIATION|KURV": {
+      "approval_rate": 0.5745,
+      "sample_size": 47,
+      "approved": 27,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|BEYOND BANCARD": {
+      "approval_rate": 0.9487,
+      "sample_size": 39,
+      "approved": 37,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|CELERO": {
+      "approval_rate": 0.7931,
+      "sample_size": 29,
+      "approved": 23,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|CLIQ": {
+      "approval_rate": 0.5488,
+      "sample_size": 82,
+      "approved": 45,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|KURV": {
+      "approval_rate": 0.8205,
+      "sample_size": 234,
+      "approved": 192,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|MERCHANT INDUSTRY": {
+      "approval_rate": 0.9565,
+      "sample_size": 23,
+      "approved": 22,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|NETEVIA": {
+      "approval_rate": 0.9221,
+      "sample_size": 77,
+      "approved": 71,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|PAYSAFE": {
+      "approval_rate": 0.9565,
+      "sample_size": 23,
+      "approved": 22,
+      "action": "allow"
+    },
+    "DISCOVER ISSUER|PRIORITY": {
+      "approval_rate": 0.9355,
+      "sample_size": 62,
+      "approved": 58,
+      "action": "allow"
+    },
+    "EVOLVE BANK & TRUST|KURV": {
+      "approval_rate": 0.9565,
+      "sample_size": 23,
+      "approved": 22,
+      "action": "allow"
+    },
+    "FIFTH THIRD BANK, THE|CLIQ": {
+      "approval_rate": 0.6364,
+      "sample_size": 22,
+      "approved": 14,
+      "action": "allow"
+    },
+    "FIFTH THIRD BANK, THE|KURV": {
+      "approval_rate": 0.9216,
+      "sample_size": 102,
+      "approved": 94,
+      "action": "allow"
+    },
+    "FIFTH THIRD BANK, THE|NETEVIA": {
+      "approval_rate": 1,
+      "sample_size": 31,
+      "approved": 31,
+      "action": "allow"
+    },
+    "FIRST-CITIZENS BANK & TRUST COMPANY|KURV": {
+      "approval_rate": 0.902,
+      "sample_size": 51,
+      "approved": 46,
+      "action": "allow"
+    },
+    "FIRST-CITIZENS BANK & TRUST COMPANY|PRIORITY": {
+      "approval_rate": 1,
+      "sample_size": 22,
+      "approved": 22,
+      "action": "allow"
+    },
+    "FISERV SOLUTIONS, LLC|KURV": {
+      "approval_rate": 0.9091,
+      "sample_size": 44,
+      "approved": 40,
+      "action": "allow"
+    },
+    "FISERV SOLUTIONS, LLC|PAYSAFE": {
+      "approval_rate": 1,
+      "sample_size": 20,
+      "approved": 20,
+      "action": "allow"
+    },
+    "GOLDEN PACIFIC BANK|KURV": {
+      "approval_rate": 0.9,
+      "sample_size": 20,
+      "approved": 18,
+      "action": "allow"
+    },
+    "GREEN DOT BANK DBA BONNEVILLE BANK|KURV": {
+      "approval_rate": 0.7727,
+      "sample_size": 44,
+      "approved": 34,
+      "action": "allow"
+    },
+    "HUNTINGTON NATIONAL BANK|CELERO": {
+      "approval_rate": 0.9583,
+      "sample_size": 24,
+      "approved": 23,
+      "action": "allow"
+    },
+    "HUNTINGTON NATIONAL BANK|KURV": {
+      "approval_rate": 0.8933,
+      "sample_size": 75,
+      "approved": 67,
+      "action": "allow"
+    },
+    "HUNTINGTON NATIONAL BANK|NETEVIA": {
+      "approval_rate": 0.95,
+      "sample_size": 20,
+      "approved": 19,
+      "action": "allow"
+    },
+    "HUNTINGTON NATIONAL BANK|PRIORITY": {
+      "approval_rate": 0.9677,
+      "sample_size": 31,
+      "approved": 30,
+      "action": "allow"
+    },
+    "JACK HENRY & ASSOCIATES|KURV": {
+      "approval_rate": 0.95,
+      "sample_size": 40,
+      "approved": 38,
+      "action": "allow"
+    },
+    "JACK HENRY & ASSOCIATES|NETEVIA": {
+      "approval_rate": 1,
+      "sample_size": 21,
+      "approved": 21,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|BEYOND BANCARD": {
+      "approval_rate": 0.9257,
+      "sample_size": 148,
+      "approved": 137,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|CELERO": {
+      "approval_rate": 0.5641,
+      "sample_size": 78,
+      "approved": 44,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|CLIQ": {
+      "approval_rate": 0.5777,
+      "sample_size": 206,
+      "approved": 119,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|KURV": {
+      "approval_rate": 0.6733,
+      "sample_size": 499,
+      "approved": 336,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|MERCHANT INDUSTRY": {
+      "approval_rate": 0.617,
+      "sample_size": 47,
+      "approved": 29,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|NETEVIA": {
+      "approval_rate": 0.6585,
+      "sample_size": 123,
+      "approved": 81,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|PAYARC": {
+      "approval_rate": 0.931,
+      "sample_size": 58,
+      "approved": 54,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|PAYSAFE": {
+      "approval_rate": 0.987,
+      "sample_size": 77,
+      "approved": 76,
+      "action": "allow"
+    },
+    "JPMORGAN CHASE BANK N.A.|PRIORITY": {
+      "approval_rate": 0.7152,
+      "sample_size": 158,
+      "approved": 113,
+      "action": "allow"
+    },
+    "KEYBANK NATIONAL ASSOCIATION|KURV": {
+      "approval_rate": 0.9815,
+      "sample_size": 54,
+      "approved": 53,
+      "action": "allow"
+    },
+    "MERRICK BANK CORPORATION|KURV": {
+      "approval_rate": 0.7813,
+      "sample_size": 32,
+      "approved": 25,
+      "action": "allow"
+    },
+    "NAVY FEDERAL CREDIT UNION|CLIQ": {
+      "approval_rate": 0.5806,
+      "sample_size": 31,
+      "approved": 18,
+      "action": "allow"
+    },
+    "NAVY FEDERAL CREDIT UNION|KURV": {
+      "approval_rate": 0.64,
+      "sample_size": 50,
+      "approved": 32,
+      "action": "allow"
+    },
+    "PATHWARD, N.A.|CLIQ": {
+      "approval_rate": 0.5806,
+      "sample_size": 31,
+      "approved": 18,
+      "action": "allow"
+    },
+    "PATHWARD, N.A.|KURV": {
+      "approval_rate": 0.7869,
+      "sample_size": 61,
+      "approved": 48,
+      "action": "allow"
+    },
+    "PATHWARD, NATIONAL ASSOCIATION|KURV": {
+      "approval_rate": 0.7119,
+      "sample_size": 59,
+      "approved": 42,
+      "action": "allow"
+    },
+    "PATHWARD, NATIONAL ASSOCIATION|PAYSAFE": {
+      "approval_rate": 1,
+      "sample_size": 20,
+      "approved": 20,
+      "action": "allow"
+    },
+    "PATHWARD, NATIONAL ASSOCIATION|PRIORITY": {
+      "approval_rate": 0.7,
+      "sample_size": 20,
+      "approved": 14,
+      "action": "allow"
+    },
+    "PNC BANK, NATIONAL ASSOCIATION|CLIQ": {
+      "approval_rate": 0.5806,
+      "sample_size": 31,
+      "approved": 18,
+      "action": "allow"
+    },
+    "PNC BANK, NATIONAL ASSOCIATION|KURV": {
+      "approval_rate": 0.5758,
+      "sample_size": 66,
+      "approved": 38,
+      "action": "allow"
+    },
+    "PNC BANK, NATIONAL ASSOCIATION|PRIORITY": {
+      "approval_rate": 0.5625,
+      "sample_size": 32,
+      "approved": 18,
+      "action": "allow"
+    },
+    "PSCU INCORPORATED|KURV": {
+      "approval_rate": 1,
+      "sample_size": 28,
+      "approved": 28,
+      "action": "allow"
+    },
+    "REGIONS BANK|CLIQ": {
+      "approval_rate": 0.75,
+      "sample_size": 32,
+      "approved": 24,
+      "action": "allow"
+    },
+    "REGIONS BANK|KURV": {
+      "approval_rate": 0.5692,
+      "sample_size": 65,
+      "approved": 37,
+      "action": "allow"
+    },
+    "REGIONS BANK|NETEVIA": {
+      "approval_rate": 0.8,
+      "sample_size": 20,
+      "approved": 16,
+      "action": "allow"
+    },
+    "REGIONS BANK|PRIORITY": {
+      "approval_rate": 0.6957,
+      "sample_size": 23,
+      "approved": 16,
+      "action": "allow"
+    },
+    "SHAZAM, INC.|KURV": {
+      "approval_rate": 0.9545,
+      "sample_size": 22,
+      "approved": 21,
+      "action": "allow"
+    },
+    "STATE EMPLOYEES' CREDIT UNION|KURV": {
+      "approval_rate": 0.9091,
+      "sample_size": 44,
+      "approved": 40,
+      "action": "allow"
+    },
+    "STRIDE BANK, NATIONAL ASSOCIATION|CLIQ": {
+      "approval_rate": 0.4615,
+      "sample_size": 52,
+      "approved": 24,
+      "action": "allow"
+    },
+    "STRIDE BANK, NATIONAL ASSOCIATION|KURV": {
+      "approval_rate": 0.6543,
+      "sample_size": 81,
+      "approved": 53,
+      "action": "allow"
+    },
+    "STRIDE BANK, NATIONAL ASSOCIATION|PRIORITY": {
+      "approval_rate": 0.5652,
+      "sample_size": 23,
+      "approved": 13,
+      "action": "allow"
+    },
+    "SUNRISE BANKS, NATIONAL ASSOCIATION|KURV": {
+      "approval_rate": 0.6667,
+      "sample_size": 21,
+      "approved": 14,
+      "action": "allow"
+    },
+    "SUTTON BANK|BEYOND BANCARD": {
+      "approval_rate": 0.4706,
+      "sample_size": 51,
+      "approved": 24,
+      "action": "allow"
+    },
+    "SUTTON BANK|CELERO": {
+      "approval_rate": 0.1613,
+      "sample_size": 62,
+      "approved": 10,
+      "action": "allow"
+    },
+    "SUTTON BANK|CLIQ": {
+      "approval_rate": 0.1727,
+      "sample_size": 139,
+      "approved": 24,
+      "action": "allow"
+    },
+    "SUTTON BANK|KURV": {
+      "approval_rate": 0.3757,
+      "sample_size": 354,
+      "approved": 133,
+      "action": "allow"
+    },
+    "SUTTON BANK|MERCHANT INDUSTRY": {
+      "approval_rate": 0.28,
+      "sample_size": 25,
+      "approved": 7,
+      "action": "allow"
+    },
+    "SUTTON BANK|NETEVIA": {
+      "approval_rate": 0.3855,
+      "sample_size": 83,
+      "approved": 32,
+      "action": "allow"
+    },
+    "SUTTON BANK|PAYSAFE": {
+      "approval_rate": 1,
+      "sample_size": 70,
+      "approved": 70,
+      "action": "allow"
+    },
+    "SUTTON BANK|PRIORITY": {
+      "approval_rate": 0.2202,
+      "sample_size": 109,
+      "approved": 24,
+      "action": "allow"
+    },
+    "SYNCHRONY BANK|BEYOND BANCARD": {
+      "approval_rate": 1,
+      "sample_size": 20,
+      "approved": 20,
+      "action": "allow"
+    },
+    "SYNCHRONY BANK|CLIQ": {
+      "approval_rate": 0.5694,
+      "sample_size": 72,
+      "approved": 41,
+      "action": "allow"
+    },
+    "SYNCHRONY BANK|KURV": {
+      "approval_rate": 0.9151,
+      "sample_size": 259,
+      "approved": 237,
+      "action": "allow"
+    },
+    "SYNCHRONY BANK|NETEVIA": {
+      "approval_rate": 1,
+      "sample_size": 31,
+      "approved": 31,
+      "action": "allow"
+    },
+    "SYNCHRONY BANK|PRIORITY": {
+      "approval_rate": 1,
+      "sample_size": 24,
+      "approved": 24,
+      "action": "allow"
+    },
+    "TD BANK, NATIONAL ASSOCIATION|KURV": {
+      "approval_rate": 0.7347,
+      "sample_size": 49,
+      "approved": 36,
+      "action": "allow"
+    },
+    "THE BANCORP BANK NATIONAL ASSOCIATION|BEYOND BANCARD": {
+      "approval_rate": 0.9643,
+      "sample_size": 28,
+      "approved": 27,
+      "action": "allow"
+    },
+    "THE BANCORP BANK NATIONAL ASSOCIATION|CLIQ": {
+      "approval_rate": 0.5918,
+      "sample_size": 49,
+      "approved": 29,
+      "action": "allow"
+    },
+    "THE BANCORP BANK NATIONAL ASSOCIATION|KURV": {
+      "approval_rate": 0.8633,
+      "sample_size": 139,
+      "approved": 120,
+      "action": "allow"
+    },
+    "THE BANCORP BANK NATIONAL ASSOCIATION|NETEVIA": {
+      "approval_rate": 0.9231,
+      "sample_size": 26,
+      "approved": 24,
+      "action": "allow"
+    },
+    "THE BANCORP BANK NATIONAL ASSOCIATION|PRIORITY": {
+      "approval_rate": 0.7826,
+      "sample_size": 23,
+      "approved": 18,
+      "action": "allow"
+    },
+    "THE BANCORP BANK, NATIONAL ASSOCIATION|CELERO": {
+      "approval_rate": 0.65,
+      "sample_size": 20,
+      "approved": 13,
+      "action": "allow"
+    },
+    "THE BANCORP BANK, NATIONAL ASSOCIATION|CLIQ": {
+      "approval_rate": 0.6406,
+      "sample_size": 64,
+      "approved": 41,
+      "action": "allow"
+    },
+    "THE BANCORP BANK, NATIONAL ASSOCIATION|KURV": {
+      "approval_rate": 0.6918,
+      "sample_size": 159,
+      "approved": 110,
+      "action": "allow"
+    },
+    "THE BANCORP BANK, NATIONAL ASSOCIATION|NETEVIA": {
+      "approval_rate": 0.7442,
+      "sample_size": 43,
+      "approved": 32,
+      "action": "allow"
+    },
+    "THE BANCORP BANK, NATIONAL ASSOCIATION|PRIORITY": {
+      "approval_rate": 0.7727,
+      "sample_size": 44,
+      "approved": 34,
+      "action": "allow"
+    },
+    "TRUIST BANK|CLIQ": {
+      "approval_rate": 0.303,
+      "sample_size": 33,
+      "approved": 10,
+      "action": "allow"
+    },
+    "TRUIST BANK|KURV": {
+      "approval_rate": 0.2222,
+      "sample_size": 63,
+      "approved": 14,
+      "action": "allow"
+    },
+    "TRUIST BANK|PRIORITY": {
+      "approval_rate": 0.4762,
+      "sample_size": 21,
+      "approved": 10,
+      "action": "allow"
+    },
+    "U.S. BANK NATIONAL ASSOCIATION|CLIQ": {
+      "approval_rate": 0.3167,
+      "sample_size": 60,
+      "approved": 19,
+      "action": "allow"
+    },
+    "U.S. BANK NATIONAL ASSOCIATION|KURV": {
+      "approval_rate": 0.3125,
+      "sample_size": 64,
+      "approved": 20,
+      "action": "allow"
+    },
+    "U.S. BANK NATIONAL ASSOCIATION|PRIORITY": {
+      "approval_rate": 0.5455,
+      "sample_size": 33,
+      "approved": 18,
+      "action": "allow"
+    },
+    "USAA FEDERAL SAVINGS BANK|KURV": {
+      "approval_rate": 0.6923,
+      "sample_size": 26,
+      "approved": 18,
+      "action": "allow"
+    },
+    "USAA FEDERAL SAVINGS BANK - CREDIT|KURV": {
+      "approval_rate": 0.4483,
+      "sample_size": 29,
+      "approved": 13,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|BEYOND BANCARD": {
+      "approval_rate": 0.4821,
+      "sample_size": 56,
+      "approved": 27,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|CELERO": {
+      "approval_rate": 0.3607,
+      "sample_size": 61,
+      "approved": 22,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|CLIQ": {
+      "approval_rate": 0.3404,
+      "sample_size": 141,
+      "approved": 48,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|KURV": {
+      "approval_rate": 0.451,
+      "sample_size": 388,
+      "approved": 175,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|MERCHANT INDUSTRY": {
+      "approval_rate": 0.3929,
+      "sample_size": 28,
+      "approved": 11,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|NETEVIA": {
+      "approval_rate": 0.4328,
+      "sample_size": 67,
+      "approved": 29,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|PAYARC": {
+      "approval_rate": 0.9048,
+      "sample_size": 21,
+      "approved": 19,
+      "action": "allow"
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|PRIORITY": {
+      "approval_rate": 0.3077,
+      "sample_size": 104,
+      "approved": 32,
+      "action": "allow"
+    },
+    "WOODFOREST NATIONAL BANK|KURV": {
+      "approval_rate": 0.9551,
+      "sample_size": 89,
+      "approved": 85,
+      "action": "allow"
+    }
+  },
+  "client_overrides_4d": {
+    "CAPITAL ONE, NATIONAL ASSOCIATION|CREDIT|KURV|KURV": {
+      "1": {
+        "approval_rate": 1,
+        "sample_size": 74,
+        "approved": 74,
+        "action": "allow"
+      },
+      "3": {
+        "approval_rate": 0.8317,
+        "sample_size": 101,
+        "approved": 84,
+        "action": "allow"
+      }
+    },
+    "CITIBANK N.A.|CREDIT|KURV|KURV": {
+      "1": {
+        "approval_rate": 0.96,
+        "sample_size": 50,
+        "approved": 48,
+        "action": "allow"
+      },
+      "3": {
+        "approval_rate": 0.9872,
+        "sample_size": 234,
+        "approved": 231,
+        "action": "allow"
+      }
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|CREDIT|Payfac|CLIQ": {
+      "3": {
+        "approval_rate": 0.4429,
+        "sample_size": 70,
+        "approved": 31,
+        "action": "allow"
+      }
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|CREDIT|Payfac|KURV": {
+      "3": {
+        "approval_rate": 0.1594,
+        "sample_size": 69,
+        "approved": 11,
+        "action": "allow"
+      }
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|DEBIT|KURV|KURV": {
+      "3": {
+        "approval_rate": 0.9444,
+        "sample_size": 54,
+        "approved": 51,
+        "action": "allow"
+      }
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|DEBIT|Payfac|CLIQ": {
+      "3": {
+        "approval_rate": 0.6027,
+        "sample_size": 73,
+        "approved": 44,
+        "action": "allow"
+      }
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|DEBIT|Payfac|KURV": {
+      "3": {
+        "approval_rate": 0.4748,
+        "sample_size": 139,
+        "approved": 66,
+        "action": "allow"
+      }
+    },
+    "BANK OF AMERICA, NATIONAL ASSOCIATION|DEBIT|Payfac|PRIORITY": {
+      "3": {
+        "approval_rate": 0.6111,
+        "sample_size": 54,
+        "approved": 33,
+        "action": "allow"
+      }
+    },
+    "BANK OF MISSOURI, THE|CREDIT|KURV|KURV": {
+      "3": {
+        "approval_rate": 0.9808,
+        "sample_size": 52,
+        "approved": 51,
+        "action": "allow"
+      }
+    },
+    "BANK OF MISSOURI, THE|CREDIT|Payfac|KURV": {
+      "3": {
+        "approval_rate": 0.9516,
+        "sample_size": 62,
+        "approved": 59,
+        "action": "allow"
+      }
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|CREDIT|Payfac|BEYOND BANCARD": {
+      "3": {
+        "approval_rate": 0.9322,
+        "sample_size": 59,
+        "approved": 55,
+        "action": "allow"
+      }
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|CREDIT|Payfac|CLIQ": {
+      "3": {
+        "approval_rate": 0.3483,
+        "sample_size": 89,
+        "approved": 31,
+        "action": "allow"
+      }
+    },
+    "CAPITAL ONE, NATIONAL ASSOCIATION|CREDIT|Payfac|KURV": {
+      "3": {
+        "approval_rate": 0.511,
+        "sample_size": 182,
+        "approved": 93,
+        "action": "allow"
+      }
+    },
+    "CITIBANK N.A.|CREDIT|KURV|PAYARC": {
+      "3": {
+        "approval_rate": 1,
+        "sample_size": 54,
+        "approved": 54,
+        "action": "allow"
+      }
+    },
+    "CITIBANK N.A.|CREDIT|Payfac|BEYOND BANCARD": {
+      "3": {
+        "approval_rate": 1,
+        "sample_size": 91,
+        "approved": 91,
+        "action": "allow"
+      }
+    },
+    "CITIBANK N.A.|CREDIT|Payfac|CLIQ": {
+      "3": {
+        "approval_rate": 0.7917,
+        "sample_size": 96,
+        "approved": 76,
+        "action": "allow"
+      }
+    },
+    "CITIBANK N.A.|CREDIT|Payfac|KURV": {
+      "3": {
+        "approval_rate": 0.908,
+        "sample_size": 250,
+        "approved": 227,
+        "action": "allow"
+      }
+    },
+    "CITIBANK N.A.|CREDIT|Payfac|NETEVIA": {
+      "3": {
+        "approval_rate": 0.9558,
+        "sample_size": 113,
+        "approved": 108,
+        "action": "allow"
+      }
+    },
+    "CITIBANK N.A.|CREDIT|Payfac|PAYSAFE": {
+      "3": {
+        "approval_rate": 0.9726,
+        "sample_size": 73,
+        "approved": 71,
+        "action": "allow"
+      }
+    },
+    "CITIBANK N.A.|CREDIT|Payfac|PRIORITY": {
+      "3": {
+        "approval_rate": 0.9798,
+        "sample_size": 99,
+        "approved": 97,
+        "action": "allow"
+      }
+    },
+    "COMERICA BANK|PREPAID|KURV|KURV": {
+      "3": {
+        "approval_rate": 0.8925,
+        "sample_size": 93,
+        "approved": 83,
+        "action": "allow"
+      }
+    },
+    "COMERICA BANK|PREPAID|Payfac|CLIQ": {
+      "3": {
+        "approval_rate": 0.3933,
+        "sample_size": 89,
+        "approved": 35,
+        "action": "allow"
+      }
+    },
+    "COMERICA BANK|PREPAID|Payfac|KURV": {
+      "3": {
+        "approval_rate": 0.321,
+        "sample_size": 162,
+        "approved": 52,
+        "action": "allow"
+      }
+    },
+    "DISCOVER ISSUER|CREDIT|Payfac|KURV": {
+      "3": {
+        "approval_rate": 0.7612,
+        "sample_size": 67,
+        "approved": 51,
+        "action": "allow"
+      }
+    },
+    "JPMORGAN CHASE BANK N.A.|CREDIT|KURV|KURV": {
+      "3": {
+        "approval_rate": 0.7736,
+        "sample_size": 53,
+        "approved": 41,
+        "action": "allow"
+      }
+    },
+    "JPMORGAN CHASE BANK N.A.|CREDIT|Payfac|CLIQ": {
+      "3": {
+        "approval_rate": 0.5652,
+        "sample_size": 69,
+        "approved": 39,
+        "action": "allow"
+      }
+    },
+    "JPMORGAN CHASE BANK N.A.|CREDIT|Payfac|KURV": {
+      "3": {
+        "approval_rate": 0.6452,
+        "sample_size": 93,
+        "approved": 60,
+        "action": "allow"
+      }
+    },
+    "JPMORGAN CHASE BANK N.A.|DEBIT|KURV|KURV": {
+      "3": {
+        "approval_rate": 0.8358,
+        "sample_size": 67,
+        "approved": 56,
+        "action": "allow"
+      }
+    },
+    "JPMORGAN CHASE BANK N.A.|DEBIT|Payfac|BEYOND BANCARD": {
+      "3": {
+        "approval_rate": 0.8571,
+        "sample_size": 56,
+        "approved": 48,
+        "action": "allow"
+      }
+    },
+    "JPMORGAN CHASE BANK N.A.|DEBIT|Payfac|CLIQ": {
+      "3": {
+        "approval_rate": 0.561,
+        "sample_size": 82,
+        "approved": 46,
+        "action": "allow"
+      }
+    },
+    "JPMORGAN CHASE BANK N.A.|DEBIT|Payfac|KURV": {
+      "3": {
+        "approval_rate": 0.4843,
+        "sample_size": 159,
+        "approved": 77,
+        "action": "allow"
+      }
+    },
+    "JPMORGAN CHASE BANK N.A.|DEBIT|Payfac|NETEVIA": {
+      "3": {
+        "approval_rate": 0.6078,
+        "sample_size": 51,
+        "approved": 31,
+        "action": "allow"
+      }
+    },
+    "JPMORGAN CHASE BANK N.A.|DEBIT|Payfac|PRIORITY": {
+      "3": {
+        "approval_rate": 0.46,
+        "sample_size": 50,
+        "approved": 23,
+        "action": "allow"
+      }
+    },
+    "SUTTON BANK|PREPAID|Payfac|CELERO": {
+      "3": {
+        "approval_rate": 0.0588,
+        "sample_size": 51,
+        "approved": 3,
+        "action": "allow"
+      }
+    },
+    "SUTTON BANK|PREPAID|Payfac|CLIQ": {
+      "3": {
+        "approval_rate": 0.0505,
+        "sample_size": 99,
+        "approved": 5,
+        "action": "allow"
+      }
+    },
+    "SUTTON BANK|PREPAID|Payfac|KURV": {
+      "3": {
+        "approval_rate": 0.141,
+        "sample_size": 234,
+        "approved": 33,
+        "action": "allow"
+      }
+    },
+    "SUTTON BANK|PREPAID|Payfac|NETEVIA": {
+      "3": {
+        "approval_rate": 0.2281,
+        "sample_size": 57,
+        "approved": 13,
+        "action": "allow"
+      }
+    },
+    "SUTTON BANK|PREPAID|Payfac|PRIORITY": {
+      "3": {
+        "approval_rate": 0.038,
+        "sample_size": 79,
+        "approved": 3,
+        "action": "hard_exclude"
+      }
+    },
+    "SYNCHRONY BANK|CREDIT|KURV|KURV": {
+      "3": {
+        "approval_rate": 0.963,
+        "sample_size": 81,
+        "approved": 78,
+        "action": "allow"
+      }
+    },
+    "SYNCHRONY BANK|CREDIT|Payfac|CLIQ": {
+      "3": {
+        "approval_rate": 0.6,
+        "sample_size": 65,
+        "approved": 39,
+        "action": "allow"
+      }
+    },
+    "SYNCHRONY BANK|CREDIT|Payfac|KURV": {
+      "3": {
+        "approval_rate": 0.8741,
+        "sample_size": 135,
+        "approved": 118,
+        "action": "allow"
+      }
+    },
+    "THE BANCORP BANK NATIONAL ASSOCIATION|DEBIT|Payfac|KURV": {
+      "3": {
+        "approval_rate": 0.8689,
+        "sample_size": 61,
+        "approved": 53,
+        "action": "allow"
+      }
+    },
+    "THE BANCORP BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|KURV": {
+      "3": {
+        "approval_rate": 0.4314,
+        "sample_size": 51,
+        "approved": 22,
+        "action": "allow"
+      }
+    },
+    "TRUIST BANK|DEBIT|Payfac|KURV": {
+      "3": {
+        "approval_rate": 0.0926,
+        "sample_size": 54,
+        "approved": 5,
+        "action": "allow"
+      }
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|CREDIT|Payfac|KURV": {
+      "3": {
+        "approval_rate": 0.3,
+        "sample_size": 50,
+        "approved": 15,
+        "action": "allow"
+      }
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|DEBIT|KURV|KURV": {
+      "3": {
+        "approval_rate": 0.9,
+        "sample_size": 70,
+        "approved": 63,
+        "action": "allow"
+      }
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|CLIQ": {
+      "3": {
+        "approval_rate": 0.2136,
+        "sample_size": 103,
+        "approved": 22,
+        "action": "allow"
+      }
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|KURV": {
+      "3": {
+        "approval_rate": 0.1399,
+        "sample_size": 193,
+        "approved": 27,
+        "action": "allow"
+      }
+    },
+    "WELLS FARGO BANK, NATIONAL ASSOCIATION|DEBIT|Payfac|PRIORITY": {
+      "3": {
+        "approval_rate": 0.0794,
+        "sample_size": 63,
+        "approved": 5,
+        "action": "allow"
+      }
+    }
+  }
+}
