@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { initDb, runSql, querySql, queryOneSql, saveDb, closeDb, transaction } = require('../db/connection');
+const { initDb, runSql, querySql, queryOneSql, saveDb, closeDb, transaction, checkpointWal } = require('../db/connection');
 const { initializeDatabase } = require('../db/schema');
 const StickyClient = require('./sticky-client');
 
@@ -195,30 +195,29 @@ class DataIngestion {
   // No separate order_view calls needed.
   // ──────────────────────────────────────────────
 
-  async pullTransactions(startDate, endDate) {
+  async pullTransactions(startDate, endDate, options = {}) {
     // Per-client paths to avoid conflicts during parallel imports
     const logPath = getLogPath(this.clientId);
     const cpPath = getCheckpointPath(this.clientId);
     const log = (msg) => logImport(msg, logPath);
 
-    // Append to log (don't overwrite — preserves history across retries)
-    log(`=== IMPORT START [client ${this.clientId}]: ${startDate} to ${endDate} ===`);
+    // Configurable options with safe defaults
+    const DAY_CONCURRENCY = options.dayConcurrency || 3;
+    const CHUNK_TARGET = options.chunkTarget || 400;
+    const MAX_DAY_RETRIES = 3;
 
-    // ── Queue-based chunking with per-day verification ──
-    // Sticky.io order_find with return_type=order_view caps at 500 orders/response.
-    // For each day: probe total_orders, pre-compute time chunks targeting ~400 each,
-    // fetch all chunks, verify count, mark verified or partial.
-    const DAY_CONCURRENCY = 3; // Days processed simultaneously
-    const MAX_DAY_RETRIES = 3; // Retries for partial days
+    log(`=== IMPORT START [client ${this.clientId}]: ${startDate} to ${endDate} ===`);
+    log(`Config: dayConcurrency=${DAY_CONCURRENCY}, chunkTarget=${CHUNK_TARGET}`);
 
     const days = this._generateDayList(startDate, endDate);
     log(`Date range: ${days.length} days, day concurrency: ${DAY_CONCURRENCY}`);
 
-    // Load checkpoint — skip verified days, retry partial days
+    // Load checkpoint — skip verified days, retry partial/in_progress days
     const checkpoint = this._loadCheckpoint(cpPath, log);
 
     const pendingDays = days.filter(d => {
       const entry = checkpoint.days[d];
+      // in_progress = crashed mid-day, re-fetch (INSERT OR IGNORE handles dupes)
       return !entry || entry.status !== 'verified';
     });
     const verifiedCount = days.length - pendingDays.length;
@@ -230,9 +229,24 @@ class DataIngestion {
       totalDays: days.length, completedDays: verifiedCount,
       verifiedDays: verifiedCount, partialDays: 0, failedDays: 0,
       totalOrdersFetched: 0, totalOrdersSaved: 0, totalApiCalls: 0,
+      totalChunksCompleted: 0, totalChunksFailed: 0,
       currentDay: null, ordersPerSecond: 0,
     };
     const progressStart = Date.now();
+
+    // onChunk callback — writes each chunk to DB immediately (async-safe)
+    const onChunk = async (orders) => {
+      if (orders.length === 0) return 0;
+      const t = Date.now();
+      const saved = this._saveOrderBatchToDB(orders);
+      const saveMs = Date.now() - t;
+      this.progress.totalOrdersSaved += saved;
+      // Warn on slow DB writes (potential lock contention)
+      if (saveMs > 2000) {
+        log(`  WARNING: DB write took ${saveMs}ms for ${orders.length} orders (possible lock contention)`);
+      }
+      return saved;
+    };
 
     // Worker pool — process DAY_CONCURRENCY days at a time
     const queue = [...pendingDays];
@@ -249,35 +263,38 @@ class DataIngestion {
         }
 
         try {
-          const result = await this._fetchAndVerifyDay(day, log);
+          const result = await this._fetchAndVerifyDay(day, log, {
+            chunkTarget: CHUNK_TARGET,
+            onChunk,
+            checkpoint,
+            cpPath,
+          });
 
-          // Save to DB
-          if (result.orders.length > 0) {
-            const saved = this._saveOrderBatchToDB(result.orders);
-            this.progress.totalOrdersSaved += saved;
-          }
-          this.progress.totalOrdersFetched += result.orders.length;
           this.progress.totalApiCalls += result.apiCalls;
+          this.progress.totalChunksCompleted += result.chunksSaved || 0;
+          this.progress.totalChunksFailed += result.chunksFailed || 0;
 
-          // Verify: compare fetched unique order_ids vs API total
-          const uniqueIds = new Set(result.orders.map(o => o.order_id));
-          const coverage = result.apiTotal > 0 ? uniqueIds.size / result.apiTotal : 1;
+          // DB-based verification — count actual orders written for this day
+          const dbCount = this._getDBCountForDay(day);
+          const coverage = result.apiTotal > 0
+            ? Math.min(1, dbCount / result.apiTotal)  // cap at 1.0
+            : 1;
 
           if (coverage >= 0.98) {
             checkpoint.days[day] = {
               status: 'verified', api_total: result.apiTotal,
-              db_count: uniqueIds.size, retries, completed_at: new Date().toISOString()
+              db_count: dbCount, retries, completed_at: new Date().toISOString()
             };
             this.progress.verifiedDays++;
-            log(`  ${day}: verified ${uniqueIds.size}/${result.apiTotal} (${(coverage * 100).toFixed(1)}%)`);
+            log(`  ${day}: verified ${dbCount}/${result.apiTotal} (${(coverage * 100).toFixed(1)}%)`);
           } else {
             checkpoint.days[day] = {
               status: 'partial', api_total: result.apiTotal,
-              db_count: uniqueIds.size, retries: retries + 1,
+              db_count: dbCount, retries: retries + 1,
               completed_at: new Date().toISOString()
             };
             this.progress.partialDays++;
-            log(`  ${day}: PARTIAL ${uniqueIds.size}/${result.apiTotal} (${(coverage * 100).toFixed(1)}%) — will retry`);
+            log(`  ${day}: PARTIAL ${dbCount}/${result.apiTotal} (${(coverage * 100).toFixed(1)}%) — will retry`);
           }
         } catch (err) {
           checkpoint.days[day] = {
@@ -293,7 +310,7 @@ class DataIngestion {
         // Update throughput
         const elapsedSec = (Date.now() - progressStart) / 1000;
         this.progress.ordersPerSecond = elapsedSec > 0
-          ? Math.round(this.progress.totalOrdersFetched / elapsedSec)
+          ? Math.round(this.progress.totalOrdersSaved / elapsedSec)
           : 0;
 
         // Save checkpoint after each day
@@ -303,25 +320,27 @@ class DataIngestion {
 
     await Promise.all(workers);
 
-    // Retry partial days (second pass)
+    // Retry partial days (second pass) — same per-chunk pattern
     const partialDays = days.filter(d => checkpoint.days[d]?.status === 'partial');
     if (partialDays.length > 0) {
       log(`Retrying ${partialDays.length} partial days...`);
       for (const day of partialDays) {
         try {
-          const result = await this._fetchAndVerifyDay(day, log);
-          if (result.orders.length > 0) {
-            this._saveOrderBatchToDB(result.orders);
-          }
-          const uniqueIds = new Set(result.orders.map(o => o.order_id));
-          const coverage = result.apiTotal > 0 ? uniqueIds.size / result.apiTotal : 1;
-          checkpoint.days[day].db_count = uniqueIds.size;
+          const result = await this._fetchAndVerifyDay(day, log, {
+            chunkTarget: CHUNK_TARGET,
+            onChunk,
+            checkpoint,
+            cpPath,
+          });
+          const dbCount = this._getDBCountForDay(day);
+          const coverage = result.apiTotal > 0 ? Math.min(1, dbCount / result.apiTotal) : 1;
+          checkpoint.days[day].db_count = dbCount;
           checkpoint.days[day].retries++;
           if (coverage >= 0.98) {
             checkpoint.days[day].status = 'verified';
-            log(`  ${day}: retry verified ${uniqueIds.size}/${result.apiTotal}`);
+            log(`  ${day}: retry verified ${dbCount}/${result.apiTotal}`);
           } else {
-            log(`  ${day}: retry still partial ${uniqueIds.size}/${result.apiTotal}`);
+            log(`  ${day}: retry still partial ${dbCount}/${result.apiTotal} (${(coverage * 100).toFixed(1)}%)`);
           }
         } catch (err) {
           checkpoint.days[day].retries++;
@@ -355,13 +374,24 @@ class DataIngestion {
 
   /**
    * Fetch all orders for a single day using queue-based time chunking.
-   * Returns { orders: [...], apiTotal: number, apiCalls: number }.
+   *
+   * When options.onChunk is provided (async callback):
+   *   - Each chunk's orders are passed to onChunk immediately (no accumulation)
+   *   - Returns { apiTotal, apiCalls, chunksSaved, chunksFailed }
+   * When options.onChunk is absent (backward compat for pullUpdated):
+   *   - Accumulates all orders in memory and returns them
+   *   - Returns { orders: [...], apiTotal, apiCalls }
    */
-  async _fetchAndVerifyDay(day, log) {
+  async _fetchAndVerifyDay(day, log, options = {}) {
+    const { chunkTarget = 400, onChunk = null, checkpoint = null, cpPath = null } = options;
+    const streaming = typeof onChunk === 'function';
+
     // Step 1: Probe to get total_orders
     const probe = await this._orderFindTimeRange(day, '00:00:00', '23:59:59');
     if (!probe.data || probe.data.response_code !== '100') {
-      if (probe.data?.response_code === '200') return { orders: [], apiTotal: 0, apiCalls: 1 };
+      if (probe.data?.response_code === '200') {
+        return streaming ? { apiTotal: 0, apiCalls: 1, chunksSaved: 0, chunksFailed: 0 } : { orders: [], apiTotal: 0, apiCalls: 1 };
+      }
       throw new Error(`Probe failed: code=${probe.data?.response_code}`);
     }
 
@@ -371,12 +401,16 @@ class DataIngestion {
     // Step 2: If ≤450 orders, the probe response has them all
     if (apiTotal <= 450) {
       const orders = this.client.parseOrdersFromResponse(probe.data);
+      if (streaming) {
+        await onChunk(orders);
+        return { apiTotal, apiCalls, chunksSaved: 1, chunksFailed: 0 };
+      }
       return { orders, apiTotal, apiCalls };
     }
 
-    // Step 3: Pre-compute time chunks targeting ~400 orders each
-    const numChunks = Math.ceil(apiTotal / 400);
-    const minutesPerChunk = Math.floor(1440 / numChunks); // 1440 minutes in a day
+    // Step 3: Pre-compute time chunks
+    const numChunks = Math.ceil(apiTotal / chunkTarget);
+    const minutesPerChunk = Math.floor(1440 / numChunks);
     const chunks = [];
     for (let i = 0; i < numChunks; i++) {
       const startMin = i * minutesPerChunk;
@@ -390,24 +424,57 @@ class DataIngestion {
     log(`  ${day}: ${apiTotal} orders → ${numChunks} chunks (~${Math.round(apiTotal / numChunks)} each)`);
 
     // Step 4: Process chunks sequentially (rate limiter handles pacing)
-    const allOrders = [];
+    const allOrders = streaming ? null : [];
     const retryQueue = [];
+    let chunksSaved = 0;
+    let chunksFailed = 0;
+    let totalSaved = 0;
 
-    for (const chunk of chunks) {
+    for (let ci = 0; ci < chunks.length; ci++) {
+      const chunk = chunks[ci];
+      const fetchStart = Date.now();
       const result = await this._orderFindTimeRange(day, chunk.startTime, chunk.endTime);
+      const fetchMs = Date.now() - fetchStart;
       apiCalls++;
 
       if (!result.data || result.data.response_code !== '100') {
-        if (result.data?.response_code === '200') continue; // no orders in this chunk
-        retryQueue.push(chunk); // will retry
+        if (result.data?.response_code === '200') { chunksSaved++; continue; }
+        retryQueue.push(chunk);
+        chunksFailed++;
         continue;
       }
 
       const chunkTotal = parseInt(result.data.total_orders || 0, 10);
       const orders = this.client.parseOrdersFromResponse(result.data);
-      allOrders.push(...orders);
 
-      // If chunk still hit the 500 cap, subdivide and re-queue
+      if (streaming) {
+        // Write to DB immediately via callback (await for async safety)
+        const saveStart = Date.now();
+        const saved = await onChunk(orders);
+        const saveMs = Date.now() - saveStart;
+        totalSaved += (saved || orders.length);
+        chunksSaved++;
+        log(`    ${day}: chunk ${ci + 1}/${chunks.length}, ${orders.length} fetched, fetch ${fetchMs}ms, save ${saveMs}ms, total ${totalSaved}`);
+
+        // Checkpoint every 5 chunks (commit-then-checkpoint)
+        if (checkpoint && cpPath && chunksSaved % 5 === 0) {
+          checkpoint.days[day] = {
+            status: 'in_progress', api_total: apiTotal,
+            chunks_total: chunks.length, chunks_done: chunksSaved,
+            updated_at: new Date().toISOString()
+          };
+          this._saveCheckpoint(cpPath, checkpoint);
+        }
+
+        // WAL checkpoint every 10 chunks to keep WAL file manageable
+        if (chunksSaved % 10 === 0) {
+          try { checkpointWal(); } catch { /* ignore WAL checkpoint errors */ }
+        }
+      } else {
+        allOrders.push(...orders);
+      }
+
+      // If chunk hit the 500 cap, subdivide and re-queue
       if (chunkTotal > 500 && orders.length >= 500) {
         const startMin = this._timeToMinutes(chunk.startTime);
         const endMin = this._timeToMinutes(chunk.endTime);
@@ -423,11 +490,28 @@ class DataIngestion {
 
     // Step 5: Process retry queue (subdivided chunks)
     for (const chunk of retryQueue) {
+      const fetchStart = Date.now();
       const result = await this._orderFindTimeRange(day, chunk.startTime, chunk.endTime);
+      const fetchMs = Date.now() - fetchStart;
       apiCalls++;
       if (result.data && result.data.response_code === '100') {
         const orders = this.client.parseOrdersFromResponse(result.data);
-        allOrders.push(...orders);
+
+        if (streaming) {
+          const saveStart = Date.now();
+          const saved = await onChunk(orders);
+          const saveMs = Date.now() - saveStart;
+          totalSaved += (saved || orders.length);
+          chunksSaved++;
+          log(`    ${day}: retry chunk, ${orders.length} fetched, fetch ${fetchMs}ms, save ${saveMs}ms, total ${totalSaved}`);
+
+          if (chunksSaved % 10 === 0) {
+            try { checkpointWal(); } catch { /* ignore */ }
+          }
+        } else {
+          allOrders.push(...orders);
+        }
+
         // If STILL hitting cap, split again
         const chunkTotal = parseInt(result.data.total_orders || 0, 10);
         if (chunkTotal > 500 && orders.length >= 500) {
@@ -435,7 +519,6 @@ class DataIngestion {
           const endMin = this._timeToMinutes(chunk.endTime);
           const midMin = Math.floor((startMin + endMin) / 2);
           if (midMin > startMin && midMin < endMin) {
-            // One more level of splitting
             for (const subChunk of [
               { startTime: chunk.startTime, endTime: this._minutesToTime(midMin).replace(/:00$/, ':59') },
               { startTime: this._minutesToTime(midMin + 1), endTime: chunk.endTime }
@@ -443,7 +526,14 @@ class DataIngestion {
               const subResult = await this._orderFindTimeRange(day, subChunk.startTime, subChunk.endTime);
               apiCalls++;
               if (subResult.data && subResult.data.response_code === '100') {
-                allOrders.push(...this.client.parseOrdersFromResponse(subResult.data));
+                const subOrders = this.client.parseOrdersFromResponse(subResult.data);
+                if (streaming) {
+                  const saved = await onChunk(subOrders);
+                  totalSaved += (saved || subOrders.length);
+                  chunksSaved++;
+                } else {
+                  allOrders.push(...subOrders);
+                }
               }
             }
           }
@@ -451,6 +541,9 @@ class DataIngestion {
       }
     }
 
+    if (streaming) {
+      return { apiTotal, apiCalls, chunksSaved, chunksFailed };
+    }
     return { orders: allOrders, apiTotal, apiCalls };
   }
 
@@ -618,6 +711,24 @@ class DataIngestion {
 
   _getDBCount() {
     const row = queryOneSql('SELECT COUNT(*) as cnt FROM orders WHERE client_id = ?', [this.clientId]);
+    return row?.cnt || 0;
+  }
+
+  /**
+   * Count distinct orders for a specific day in DB.
+   * Uses range query on acquisition_date — fully uses idx_orders_client_date index.
+   * @param {string} day - MM/DD/YYYY format
+   */
+  _getDBCountForDay(day) {
+    const [mm, dd, yyyy] = day.split('/');
+    const dayStart = `${yyyy}-${mm}-${dd}`;
+    const nextDay = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const dayEnd = nextDay.toISOString().split('T')[0];
+    const row = queryOneSql(
+      'SELECT COUNT(DISTINCT order_id) as cnt FROM orders WHERE client_id = ? AND acquisition_date >= ? AND acquisition_date < ?',
+      [this.clientId, dayStart, dayEnd]
+    );
     return row?.cnt || 0;
   }
 
