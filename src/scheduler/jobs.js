@@ -15,9 +15,9 @@ const { runPostSyncPipeline } = require('../pipeline/post-sync');
 function startScheduler() {
   console.log('[Scheduler] Starting scheduled jobs...');
 
-  // Daily full transaction pull at 6:00 AM
+  // Daily incremental pull at 6:00 AM — last 14 days only
   cron.schedule('0 6 * * *', async () => {
-    console.log('[Scheduler] Running daily full pull...');
+    console.log('[Scheduler] Running daily incremental pull (14 days)...');
     const clients = querySql('SELECT id FROM clients');
 
     for (const { id } of clients) {
@@ -26,10 +26,9 @@ function startScheduler() {
         ingestion.init();
 
         const endDate = formatDate(new Date());
-        const startDate = formatDate(daysAgo(180));
+        const startDate = formatDate(daysAgo(14));
 
         await ingestion.syncGateways();
-        // Date-based order pull — no campaign dependency
         await ingestion.pullTransactions(startDate, endDate);
 
         // Run analysis pipeline
@@ -61,6 +60,38 @@ function startScheduler() {
         }
       } catch (err) {
         console.error(`[Scheduler] Daily pull failed for client ${id}:`, err.message);
+      }
+    }
+  });
+
+  // Weekly full pull at Sunday 5:00 AM — full 180-day window for all clients
+  cron.schedule('0 5 * * 0', async () => {
+    console.log('[Scheduler] Running weekly full pull (180 days)...');
+    const clients = querySql('SELECT id FROM clients');
+
+    for (const { id } of clients) {
+      try {
+        const ingestion = new DataIngestion(id);
+        ingestion.init();
+
+        const endDate = formatDate(new Date());
+        const startDate = formatDate(daysAgo(180));
+
+        await ingestion.syncGateways();
+        await ingestion.pullTransactions(startDate, endDate);
+
+        console.log(`[Scheduler] Weekly full pull complete for client ${id}.`, ingestion.getStats());
+
+        try {
+          runPostSyncPipeline(id);
+        } catch (err) {
+          console.error(`[Scheduler] Post-sync pipeline failed for client ${id}:`, err.message);
+        }
+        recomputeAllAnalytics(id).catch(err =>
+          console.error(`[Scheduler] Analytics recompute failed for client ${id}:`, err.message)
+        );
+      } catch (err) {
+        console.error(`[Scheduler] Weekly full pull failed for client ${id}:`, err.message);
       }
     }
   });
@@ -109,7 +140,8 @@ function startScheduler() {
   });
 
   console.log('[Scheduler] Jobs scheduled:');
-  console.log('  - Daily full pull: 6:00 AM');
+  console.log('  - Daily incremental pull (14 days): 6:00 AM');
+  console.log('  - Weekly full pull (180 days): Sunday 5:00 AM');
   console.log('  - Hourly MID check: every hour');
   console.log('  - Implementation check: every 6 hours');
   console.log('  - Weekly AI retrain: Sunday 7:00 AM');
