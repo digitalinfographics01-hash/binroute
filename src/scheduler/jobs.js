@@ -64,38 +64,6 @@ function startScheduler() {
     }
   });
 
-  // Weekly full pull at Sunday 5:00 AM — full 180-day window for all clients
-  cron.schedule('0 5 * * 0', async () => {
-    console.log('[Scheduler] Running weekly full pull (180 days)...');
-    const clients = querySql('SELECT id FROM clients');
-
-    for (const { id } of clients) {
-      try {
-        const ingestion = new DataIngestion(id);
-        ingestion.init();
-
-        const endDate = formatDate(new Date());
-        const startDate = formatDate(daysAgo(180));
-
-        await ingestion.syncGateways();
-        await ingestion.pullTransactions(startDate, endDate);
-
-        console.log(`[Scheduler] Weekly full pull complete for client ${id}.`, ingestion.getStats());
-
-        try {
-          runPostSyncPipeline(id);
-        } catch (err) {
-          console.error(`[Scheduler] Post-sync pipeline failed for client ${id}:`, err.message);
-        }
-        recomputeAllAnalytics(id).catch(err =>
-          console.error(`[Scheduler] Analytics recompute failed for client ${id}:`, err.message)
-        );
-      } catch (err) {
-        console.error(`[Scheduler] Weekly full pull failed for client ${id}:`, err.message);
-      }
-    }
-  });
-
   // Hourly MID status check
   cron.schedule('0 * * * *', async () => {
     console.log('[Scheduler] Running hourly MID status check...');
@@ -141,7 +109,6 @@ function startScheduler() {
 
   console.log('[Scheduler] Jobs scheduled:');
   console.log('  - Daily incremental pull (14 days): 6:00 AM');
-  console.log('  - Weekly full pull (180 days): Sunday 5:00 AM');
   console.log('  - Hourly MID check: every hour');
   console.log('  - Implementation check: every 6 hours');
   console.log('  - Weekly AI retrain: Sunday 7:00 AM');
