@@ -168,6 +168,11 @@ CREATE TABLE IF NOT EXISTS orders (
   c2 TEXT DEFAULT NULL,
   c3 TEXT DEFAULT NULL,
   affid TEXT DEFAULT NULL,
+  time_stamp DATETIME DEFAULT NULL,
+  is_test_cc INTEGER DEFAULT 0,
+  retry_date TEXT DEFAULT NULL,
+  tracking_number TEXT DEFAULT NULL,
+  shipping_date TEXT DEFAULT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(client_id, order_id)
 );
@@ -878,6 +883,11 @@ async function initializeDatabase() {
     // Payfac flag — marks attempts for customers whose initial was on a Payfac gateway
     "ALTER TABLE transaction_attempts ADD COLUMN initial_was_payfac INTEGER DEFAULT 0",
     "ALTER TABLE orders ADD COLUMN date_created DATETIME DEFAULT NULL",
+    "ALTER TABLE orders ADD COLUMN time_stamp DATETIME DEFAULT NULL",
+    "ALTER TABLE orders ADD COLUMN is_test_cc INTEGER DEFAULT 0",
+    "ALTER TABLE orders ADD COLUMN retry_date TEXT DEFAULT NULL",
+    "ALTER TABLE orders ADD COLUMN tracking_number TEXT DEFAULT NULL",
+    "ALTER TABLE orders ADD COLUMN shipping_date TEXT DEFAULT NULL",
   ];
   for (const m of migrations) {
     try { execSql(m); } catch (e) {

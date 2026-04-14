@@ -674,11 +674,12 @@ class DataIngestion {
   }
 
   /**
-   * INSERT OR IGNORE — never creates duplicates.
+   * INSERT or UPDATE — inserts new orders, updates API fields on existing ones
+   * without wiping derived columns (cascade_chain, derived_product_role, etc.).
    */
   _insertOrderSafe(order) {
     runSql(`
-      INSERT OR IGNORE INTO orders (
+      INSERT INTO orders (
         client_id, order_id, customer_id, contact_id, is_anonymous_decline,
         campaign_id, gateway_id, gateway_descriptor,
         cc_first_6, cc_type, order_status, order_total,
@@ -695,8 +696,39 @@ class DataIngestion {
         coupon_id, coupon_discount_amount, decline_salvage_discount_percent, rebill_discount_percent,
         stop_after_next_rebill, on_hold, hold_date, order_confirmed,
         parent_id, child_id, is_in_trial, order_subtotal, shipping_total, tax_total,
-        c1, c2, c3, affid
-      ) VALUES (${Array(69).fill('?').join(',')})
+        c1, c2, c3, affid,
+        time_stamp, is_test_cc, retry_date, tracking_number, shipping_date
+      ) VALUES (${Array(74).fill('?').join(',')})
+      ON CONFLICT(client_id, order_id) DO UPDATE SET
+        customer_id=excluded.customer_id, contact_id=excluded.contact_id,
+        campaign_id=excluded.campaign_id, gateway_id=excluded.gateway_id, gateway_descriptor=excluded.gateway_descriptor,
+        cc_first_6=excluded.cc_first_6, cc_type=excluded.cc_type, order_status=excluded.order_status, order_total=excluded.order_total,
+        decline_reason=excluded.decline_reason, decline_reason_details=excluded.decline_reason_details,
+        acquisition_date=excluded.acquisition_date, date_created=excluded.date_created,
+        billing_cycle=excluded.billing_cycle, is_cascaded=excluded.is_cascaded, retry_attempt=excluded.retry_attempt,
+        is_recurring=excluded.is_recurring, tx_type=excluded.tx_type, product_ids=excluded.product_ids, ancestor_id=excluded.ancestor_id,
+        billing_country=excluded.billing_country, billing_state=excluded.billing_state, ip_address=excluded.ip_address,
+        prepaid=excluded.prepaid, prepaid_match=excluded.prepaid_match,
+        email_address=excluded.email_address, preserve_gateway=excluded.preserve_gateway,
+        is_chargeback=excluded.is_chargeback, chargeback_date=excluded.chargeback_date,
+        is_refund=excluded.is_refund, refund_amount=excluded.refund_amount, refund_date=excluded.refund_date,
+        is_void=excluded.is_void, void_amount=excluded.void_amount, void_date=excluded.void_date,
+        amount_refunded_to_date=excluded.amount_refunded_to_date,
+        click_id=excluded.click_id, utm_source=excluded.utm_source, utm_medium=excluded.utm_medium,
+        utm_campaign=excluded.utm_campaign, utm_content=excluded.utm_content, utm_term=excluded.utm_term,
+        device_category=excluded.device_category, created_by=excluded.created_by,
+        billing_model_id=excluded.billing_model_id, billing_model_name=excluded.billing_model_name,
+        offer_id=excluded.offer_id, subscription_id=excluded.subscription_id,
+        coupon_id=excluded.coupon_id, coupon_discount_amount=excluded.coupon_discount_amount,
+        decline_salvage_discount_percent=excluded.decline_salvage_discount_percent,
+        rebill_discount_percent=excluded.rebill_discount_percent,
+        stop_after_next_rebill=excluded.stop_after_next_rebill, on_hold=excluded.on_hold,
+        hold_date=excluded.hold_date, order_confirmed=excluded.order_confirmed,
+        parent_id=excluded.parent_id, child_id=excluded.child_id, is_in_trial=excluded.is_in_trial,
+        order_subtotal=excluded.order_subtotal, shipping_total=excluded.shipping_total, tax_total=excluded.tax_total,
+        c1=excluded.c1, c2=excluded.c2, c3=excluded.c3, affid=excluded.affid,
+        time_stamp=excluded.time_stamp, is_test_cc=excluded.is_test_cc, retry_date=excluded.retry_date,
+        tracking_number=excluded.tracking_number, shipping_date=excluded.shipping_date
     `, [
       this.clientId, order.order_id, order.customer_id, order.contact_id, order.is_anonymous_decline,
       order.campaign_id, order.gateway_id, order.gateway_descriptor,
@@ -715,6 +747,7 @@ class DataIngestion {
       order.stop_after_next_rebill, order.on_hold, order.hold_date, order.order_confirmed,
       order.parent_id, order.child_id, order.is_in_trial, order.order_subtotal, order.shipping_total, order.tax_total,
       order.c1, order.c2, order.c3, order.affid,
+      order.time_stamp, order.is_test_cc, order.retry_date, order.tracking_number, order.shipping_date,
     ]);
   }
 
@@ -832,10 +865,10 @@ class DataIngestion {
   // DB OPERATIONS
   // ──────────────────────────────────────────────
 
-  /** Used by incremental updates — INSERT OR REPLACE for updated orders */
+  /** Used by incremental updates — upserts API fields, preserves derived columns */
   _upsertOrder(order) {
     runSql(`
-      INSERT OR REPLACE INTO orders (
+      INSERT INTO orders (
         client_id, order_id, customer_id, contact_id, is_anonymous_decline,
         campaign_id, gateway_id, gateway_descriptor,
         cc_first_6, cc_type, order_status, order_total,
@@ -852,8 +885,39 @@ class DataIngestion {
         coupon_id, coupon_discount_amount, decline_salvage_discount_percent, rebill_discount_percent,
         stop_after_next_rebill, on_hold, hold_date, order_confirmed,
         parent_id, child_id, is_in_trial, order_subtotal, shipping_total, tax_total,
-        c1, c2, c3, affid
-      ) VALUES (${Array(69).fill('?').join(',')})
+        c1, c2, c3, affid,
+        time_stamp, is_test_cc, retry_date, tracking_number, shipping_date
+      ) VALUES (${Array(74).fill('?').join(',')})
+      ON CONFLICT(client_id, order_id) DO UPDATE SET
+        customer_id=excluded.customer_id, contact_id=excluded.contact_id,
+        campaign_id=excluded.campaign_id, gateway_id=excluded.gateway_id, gateway_descriptor=excluded.gateway_descriptor,
+        cc_first_6=excluded.cc_first_6, cc_type=excluded.cc_type, order_status=excluded.order_status, order_total=excluded.order_total,
+        decline_reason=excluded.decline_reason, decline_reason_details=excluded.decline_reason_details,
+        acquisition_date=excluded.acquisition_date, date_created=excluded.date_created,
+        billing_cycle=excluded.billing_cycle, is_cascaded=excluded.is_cascaded, retry_attempt=excluded.retry_attempt,
+        is_recurring=excluded.is_recurring, tx_type=excluded.tx_type, product_ids=excluded.product_ids, ancestor_id=excluded.ancestor_id,
+        billing_country=excluded.billing_country, billing_state=excluded.billing_state, ip_address=excluded.ip_address,
+        prepaid=excluded.prepaid, prepaid_match=excluded.prepaid_match,
+        email_address=excluded.email_address, preserve_gateway=excluded.preserve_gateway,
+        is_chargeback=excluded.is_chargeback, chargeback_date=excluded.chargeback_date,
+        is_refund=excluded.is_refund, refund_amount=excluded.refund_amount, refund_date=excluded.refund_date,
+        is_void=excluded.is_void, void_amount=excluded.void_amount, void_date=excluded.void_date,
+        amount_refunded_to_date=excluded.amount_refunded_to_date,
+        click_id=excluded.click_id, utm_source=excluded.utm_source, utm_medium=excluded.utm_medium,
+        utm_campaign=excluded.utm_campaign, utm_content=excluded.utm_content, utm_term=excluded.utm_term,
+        device_category=excluded.device_category, created_by=excluded.created_by,
+        billing_model_id=excluded.billing_model_id, billing_model_name=excluded.billing_model_name,
+        offer_id=excluded.offer_id, subscription_id=excluded.subscription_id,
+        coupon_id=excluded.coupon_id, coupon_discount_amount=excluded.coupon_discount_amount,
+        decline_salvage_discount_percent=excluded.decline_salvage_discount_percent,
+        rebill_discount_percent=excluded.rebill_discount_percent,
+        stop_after_next_rebill=excluded.stop_after_next_rebill, on_hold=excluded.on_hold,
+        hold_date=excluded.hold_date, order_confirmed=excluded.order_confirmed,
+        parent_id=excluded.parent_id, child_id=excluded.child_id, is_in_trial=excluded.is_in_trial,
+        order_subtotal=excluded.order_subtotal, shipping_total=excluded.shipping_total, tax_total=excluded.tax_total,
+        c1=excluded.c1, c2=excluded.c2, c3=excluded.c3, affid=excluded.affid,
+        time_stamp=excluded.time_stamp, is_test_cc=excluded.is_test_cc, retry_date=excluded.retry_date,
+        tracking_number=excluded.tracking_number, shipping_date=excluded.shipping_date
     `, [
       this.clientId, order.order_id, order.customer_id, order.contact_id, order.is_anonymous_decline,
       order.campaign_id, order.gateway_id, order.gateway_descriptor,
@@ -872,6 +936,7 @@ class DataIngestion {
       order.stop_after_next_rebill, order.on_hold, order.hold_date, order.order_confirmed,
       order.parent_id, order.child_id, order.is_in_trial, order.order_subtotal, order.shipping_total, order.tax_total,
       order.c1, order.c2, order.c3, order.affid,
+      order.time_stamp, order.is_test_cc, order.retry_date, order.tracking_number, order.shipping_date,
     ]);
   }
 
