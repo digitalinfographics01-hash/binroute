@@ -259,6 +259,7 @@ class StickyClient {
       decline_reason: raw.decline_reason || null,
       decline_reason_details: raw.decline_reason_details || null,
       acquisition_date: raw.acquisition_date || null,
+      date_created: raw.date_created || null,
       billing_cycle: raw.billing_cycle || '0',
       is_cascaded: isCascaded ? 1 : 0,
       retry_attempt: raw.retry_attempt || '0',

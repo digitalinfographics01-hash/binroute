@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS orders (
   decline_reason_details TEXT,
   decline_category TEXT,
   acquisition_date DATETIME,
+  date_created DATETIME,
   billing_cycle INTEGER DEFAULT 0,
   is_cascaded INTEGER DEFAULT 0,
   retry_attempt INTEGER DEFAULT 0,
@@ -705,6 +706,7 @@ CREATE TABLE IF NOT EXISTS transaction_attempts (
   initial_amount REAL,
   amount_ratio REAL,
   prior_declines_in_cycle INTEGER,
+  initial_was_payfac INTEGER DEFAULT 0,
   feature_version INTEGER DEFAULT 0,
 
   UNIQUE(client_id, sticky_order_id, attempt_seq)
@@ -716,6 +718,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_client_bin ON orders(client_id, cc_first_6
 CREATE INDEX IF NOT EXISTS idx_orders_client_gateway ON orders(client_id, gateway_id);
 CREATE INDEX IF NOT EXISTS idx_orders_client_status ON orders(client_id, order_status);
 CREATE INDEX IF NOT EXISTS idx_orders_client_date ON orders(client_id, acquisition_date);
+CREATE INDEX IF NOT EXISTS idx_orders_client_date_created ON orders(client_id, date_created);
 CREATE INDEX IF NOT EXISTS idx_orders_client_txtype ON orders(client_id, tx_type);
 CREATE INDEX IF NOT EXISTS idx_orders_client_cascade ON orders(client_id, is_cascaded);
 CREATE INDEX IF NOT EXISTS idx_orders_client_anon ON orders(client_id, is_anonymous_decline);
@@ -872,6 +875,9 @@ async function initializeDatabase() {
     "ALTER TABLE tx_features ADD COLUMN billing_state TEXT DEFAULT NULL",
     "ALTER TABLE tx_features ADD COLUMN last_approved_processor TEXT DEFAULT NULL",
     "ALTER TABLE tx_features ADD COLUMN parent_declined_processor TEXT DEFAULT NULL",
+    // Payfac flag — marks attempts for customers whose initial was on a Payfac gateway
+    "ALTER TABLE transaction_attempts ADD COLUMN initial_was_payfac INTEGER DEFAULT 0",
+    "ALTER TABLE orders ADD COLUMN date_created DATETIME DEFAULT NULL",
   ];
   for (const m of migrations) {
     try { execSql(m); } catch (e) {

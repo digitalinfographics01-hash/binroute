@@ -248,8 +248,8 @@ class DataIngestion {
       return saved;
     };
 
-    // Worker pool — process DAY_CONCURRENCY days at a time
-    const queue = [...pendingDays];
+    // Worker pool — process newest days first so latest data arrives ASAP
+    const queue = [...pendingDays].reverse();
     const workers = Array(Math.min(DAY_CONCURRENCY, queue.length)).fill(null).map(async () => {
       while (queue.length > 0) {
         const day = queue.shift();
@@ -683,7 +683,7 @@ class DataIngestion {
         campaign_id, gateway_id, gateway_descriptor,
         cc_first_6, cc_type, order_status, order_total,
         decline_reason, decline_reason_details,
-        acquisition_date, billing_cycle, is_cascaded, retry_attempt,
+        acquisition_date, date_created, billing_cycle, is_cascaded, retry_attempt,
         is_recurring, tx_type, product_ids, ancestor_id,
         billing_country, billing_state, ip_address,
         prepaid, prepaid_match,
@@ -696,13 +696,13 @@ class DataIngestion {
         stop_after_next_rebill, on_hold, hold_date, order_confirmed,
         parent_id, child_id, is_in_trial, order_subtotal, shipping_total, tax_total,
         c1, c2, c3, affid
-      ) VALUES (${Array(68).fill('?').join(',')})
+      ) VALUES (${Array(69).fill('?').join(',')})
     `, [
       this.clientId, order.order_id, order.customer_id, order.contact_id, order.is_anonymous_decline,
       order.campaign_id, order.gateway_id, order.gateway_descriptor,
       order.cc_first_6, order.cc_type, order.order_status, order.order_total,
       order.decline_reason, order.decline_reason_details,
-      order.acquisition_date, order.billing_cycle, order.is_cascaded, order.retry_attempt,
+      order.acquisition_date, order.date_created, order.billing_cycle, order.is_cascaded, order.retry_attempt,
       order.is_recurring, order.tx_type, order.product_ids, order.ancestor_id,
       order.billing_country, order.billing_state, order.ip_address,
       order.prepaid || '0', order.prepaid_match || 'No',
@@ -725,7 +725,7 @@ class DataIngestion {
 
   /**
    * Count distinct orders for a specific day in DB.
-   * Uses range query on acquisition_date — fully uses idx_orders_client_date index.
+   * Uses date_created (matches API date_type=create) for accurate verification.
    * @param {string} day - MM/DD/YYYY format
    */
   _getDBCountForDay(day) {
@@ -735,7 +735,7 @@ class DataIngestion {
     nextDay.setDate(nextDay.getDate() + 1);
     const dayEnd = nextDay.toISOString().split('T')[0];
     const row = queryOneSql(
-      'SELECT COUNT(DISTINCT order_id) as cnt FROM orders WHERE client_id = ? AND acquisition_date >= ? AND acquisition_date < ?',
+      'SELECT COUNT(DISTINCT order_id) as cnt FROM orders WHERE client_id = ? AND date_created >= ? AND date_created < ?',
       [this.clientId, dayStart, dayEnd]
     );
     return row?.cnt || 0;
@@ -840,7 +840,7 @@ class DataIngestion {
         campaign_id, gateway_id, gateway_descriptor,
         cc_first_6, cc_type, order_status, order_total,
         decline_reason, decline_reason_details,
-        acquisition_date, billing_cycle, is_cascaded, retry_attempt,
+        acquisition_date, date_created, billing_cycle, is_cascaded, retry_attempt,
         is_recurring, tx_type, product_ids, ancestor_id,
         billing_country, billing_state, ip_address,
         prepaid, prepaid_match,
@@ -853,13 +853,13 @@ class DataIngestion {
         stop_after_next_rebill, on_hold, hold_date, order_confirmed,
         parent_id, child_id, is_in_trial, order_subtotal, shipping_total, tax_total,
         c1, c2, c3, affid
-      ) VALUES (${Array(68).fill('?').join(',')})
+      ) VALUES (${Array(69).fill('?').join(',')})
     `, [
       this.clientId, order.order_id, order.customer_id, order.contact_id, order.is_anonymous_decline,
       order.campaign_id, order.gateway_id, order.gateway_descriptor,
       order.cc_first_6, order.cc_type, order.order_status, order.order_total,
       order.decline_reason, order.decline_reason_details,
-      order.acquisition_date, order.billing_cycle, order.is_cascaded, order.retry_attempt,
+      order.acquisition_date, order.date_created, order.billing_cycle, order.is_cascaded, order.retry_attempt,
       order.is_recurring, order.tx_type, order.product_ids, order.ancestor_id,
       order.billing_country, order.billing_state, order.ip_address,
       order.prepaid || '0', order.prepaid_match || 'No',
