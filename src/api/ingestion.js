@@ -873,6 +873,71 @@ class DataIngestion {
   }
 
   // ──────────────────────────────────────────────
+  // STATUS UPDATES — order_find_updated + order_view
+  // Catches chargebacks, refunds, voids, status changes on ANY order
+  // regardless of when it was created.
+  // ──────────────────────────────────────────────
+
+  async pullStatusUpdates(startDate, endDate) {
+    const log = (msg) => console.log(`[Ingestion] ${msg}`);
+    log(`Status update sync: ${startDate} to ${endDate}`);
+
+    // Step 1: Get all order IDs that were updated in this window
+    let allOrderIds = [];
+    let page = 1;
+    while (true) {
+      const result = await this.client._post('order_find_updated', {
+        start_date: startDate,
+        end_date: endDate,
+        campaign_id: 'all',
+        results_per_page: 5000,
+        page,
+      });
+
+      if (result.response_code !== '100' || !result.order_id) break;
+
+      const ids = Array.isArray(result.order_id) ? result.order_id : [result.order_id];
+      allOrderIds.push(...ids);
+      log(`  Page ${page}: ${ids.length} updated order IDs (total: ${allOrderIds.length}/${result.total_orders})`);
+
+      if (allOrderIds.length >= parseInt(result.total_orders, 10)) break;
+      page++;
+    }
+
+    if (allOrderIds.length === 0) {
+      log('No updated orders found.');
+      return;
+    }
+
+    log(`Found ${allOrderIds.length} updated orders. Fetching full details...`);
+
+    // Step 2: Fetch each order via order_view and upsert
+    let fetched = 0, saved = 0, errors = 0;
+    for (const oid of allOrderIds) {
+      try {
+        const raw = await this.client._post('order_view', { order_id: String(oid) });
+        fetched++;
+        if (raw && raw.order_id) {
+          const order = this.client.normalizeOrder(raw);
+          this._insertOrderSafe(order);
+          saved++;
+        }
+      } catch (e) {
+        errors++;
+      }
+
+      if (fetched % 500 === 0) {
+        saveDb();
+        log(`  Progress: ${fetched}/${allOrderIds.length} fetched, ${saved} saved, ${errors} errors`);
+      }
+    }
+
+    saveDb();
+    this._updateSyncState('status_updates');
+    log(`Status updates complete: ${fetched} fetched, ${saved} saved, ${errors} errors`);
+  }
+
+  // ──────────────────────────────────────────────
   // MID STATUS CHECK
   // ──────────────────────────────────────────────
 

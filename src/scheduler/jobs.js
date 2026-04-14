@@ -15,9 +15,11 @@ const { runPostSyncPipeline } = require('../pipeline/post-sync');
 function startScheduler() {
   console.log('[Scheduler] Starting scheduled jobs...');
 
-  // Daily incremental pull at 6:00 AM — last 14 days only
-  cron.schedule('0 6 * * *', async () => {
-    console.log('[Scheduler] Running daily incremental pull (14 days)...');
+  // Daily sync — PAUSED until new approach is tested
+  // To re-enable: change false to '0 6 * * *'
+  // cron.schedule('0 6 * * *', async () => {
+  if (false) { (async () => {
+    console.log('[Scheduler] Running daily sync...');
     const clients = querySql('SELECT id FROM clients');
 
     for (const { id } of clients) {
@@ -26,10 +28,17 @@ function startScheduler() {
         ingestion.init();
 
         const endDate = formatDate(new Date());
-        const startDate = formatDate(daysAgo(14));
 
+        // Step 1: Pull new orders (last 3 days by created date)
+        const newOrdersStart = formatDate(daysAgo(3));
         await ingestion.syncGateways();
-        await ingestion.pullTransactions(startDate, endDate);
+        console.log(`[Scheduler] Client ${id}: pulling new orders ${newOrdersStart} to ${endDate}`);
+        await ingestion.pullTransactions(newOrdersStart, endDate);
+
+        // Step 2: Pull status updates (chargebacks, refunds, voids on ANY order)
+        const updatesStart = formatDate(daysAgo(2));
+        console.log(`[Scheduler] Client ${id}: pulling status updates ${updatesStart} to ${endDate}`);
+        await ingestion.pullStatusUpdates(updatesStart, endDate);
 
         // Run analysis pipeline
         await runClassifiers(id);
@@ -39,7 +48,7 @@ function startScheduler() {
         checkWaitingImplementations();
         evaluateImplementations();
 
-        console.log(`[Scheduler] Daily pull complete for client ${id}.`, ingestion.getStats());
+        console.log(`[Scheduler] Daily sync complete for client ${id}.`, ingestion.getStats());
 
         // Post-sync pipeline: classify → derive → recompute
         try {
@@ -62,7 +71,7 @@ function startScheduler() {
         console.error(`[Scheduler] Daily pull failed for client ${id}:`, err.message);
       }
     }
-  });
+  })(); }
 
   // Hourly MID status check
   cron.schedule('0 * * * *', async () => {
@@ -108,7 +117,7 @@ function startScheduler() {
   });
 
   console.log('[Scheduler] Jobs scheduled:');
-  console.log('  - Daily incremental pull (14 days): 6:00 AM');
+  console.log('  - Daily sync: PAUSED (testing new approach)');
   console.log('  - Hourly MID check: every hour');
   console.log('  - Implementation check: every 6 hours');
   console.log('  - Weekly AI retrain: Sunday 7:00 AM');
