@@ -259,7 +259,7 @@ class StickyClient {
       decline_reason: raw.decline_reason || null,
       decline_reason_details: raw.decline_reason_details || null,
       acquisition_date: raw.acquisition_date || null,
-      date_created: raw.date_created || null,
+      date_created: raw.date_created || raw.time_stamp || raw.acquisition_date || null,
       billing_cycle: raw.billing_cycle || '0',
       is_cascaded: isCascaded ? 1 : 0,
       retry_attempt: raw.retry_attempt || '0',
@@ -379,7 +379,7 @@ class StickyClient {
       // Compliance / misc
       consent_required: raw.consent_required === '1' ? 1 : 0,
       consent_received: raw.consent_received === '1' ? 1 : 0,
-      order_customer_types: raw.order_customer_types || null,
+      order_customer_types: Array.isArray(raw.order_customer_types) ? JSON.stringify(raw.order_customer_types) : (raw.order_customer_types || null),
       website_received: raw.website_received || null,
       website_sent: raw.website_sent || null,
       ip_address_lookup: raw.ip_Address_lookup || null,
@@ -405,6 +405,27 @@ class StickyClient {
   // ──────────────────────────────────────────────
 
   /**
+   * GET request to Sticky v2 API with retry on 429.
+   */
+  async _post_v2_get(path, retries = 5) {
+    const url = `https://${this.baseUrl}/api/v2/${path}`;
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      await this.rateLimiter.acquire();
+      try {
+        const response = await axios.get(url, { auth: this.auth, timeout: 30000 });
+        return response.data;
+      } catch (err) {
+        if (err.response?.status === 429 && attempt < retries) {
+          const delay = Math.min(2000 * Math.pow(2, attempt - 1), 60000);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        throw err;
+      }
+    }
+  }
+
+  /**
    * Fetch all products from Sticky.io via v2/products (paginated).
    * Returns array of { product_id, product_name, sku, price }.
    */
@@ -415,12 +436,30 @@ class StickyClient {
       await this.rateLimiter.acquire();
 
       const url = `https://${this.baseUrl}/api/v2/products?page=${page}`;
-      const response = await axios.get(url, {
-        auth: this.auth,
-        timeout: 30000,
-      });
-      const data = response.data;
-      if (data.status !== 'SUCCESS' || !data.data || data.data.length === 0) break;
+      let data;
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        try {
+          const response = await axios.get(url, {
+            auth: this.auth,
+            timeout: 30000,
+          });
+          data = response.data;
+          break;
+        } catch (err) {
+          if (err.response?.status === 429 && attempt < 5) {
+            const delay = Math.min(2000 * Math.pow(2, attempt - 1), 60000);
+            console.log(`[productIndex] 429 on page ${page}, retry ${attempt}/5 in ${delay}ms`);
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+          }
+          if (err.response?.status === 429 && products.length > 0) {
+            console.log(`[productIndex] 429 after ${page - 1} pages, returning ${products.length} products collected so far`);
+            return { response_code: '100', products, partial: true };
+          }
+          throw err;
+        }
+      }
+      if (!data || data.status !== 'SUCCESS' || !data.data || data.data.length === 0) break;
 
       for (const p of data.data) {
         products.push({

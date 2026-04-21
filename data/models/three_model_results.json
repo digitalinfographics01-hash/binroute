@@ -1,0 +1,309 @@
+{
+  "initial_cascade": {
+    "name": "Initial + Cascade",
+    "rows": 56193,
+    "auc": 0.9632925612989007,
+    "f1": 0.8617995088189327,
+    "precision": 0.7861507128309573,
+    "recall": 0.9535573122529645,
+    "train_time": 3.9749271869659424,
+    "features": [
+      "processor_name",
+      "acquiring_bank",
+      "mcc_code",
+      "issuer_bank",
+      "card_brand",
+      "card_type",
+      "cycle_depth",
+      "offer_name",
+      "training_client_id",
+      "billing_state",
+      "tx_class",
+      "is_prepaid",
+      "amount",
+      "hour_of_day",
+      "day_of_week",
+      "mid_velocity_daily",
+      "mid_velocity_weekly",
+      "customer_history_on_proc",
+      "bin_velocity_weekly",
+      "mid_age_days",
+      "attempt_number",
+      "cascade_depth",
+      "cascade_n_processors",
+      "cascade_had_nsf",
+      "cascade_had_do_not_honor",
+      "cascade_had_pickup"
+    ],
+    "top_features": [
+      [
+        "mid_age_days",
+        1031.0
+      ],
+      [
+        "mid_velocity_weekly",
+        1002.0
+      ],
+      [
+        "issuer_bank",
+        881.0
+      ],
+      [
+        "mid_velocity_daily",
+        821.0
+      ],
+      [
+        "bin_velocity_weekly",
+        819.0
+      ],
+      [
+        "amount",
+        699.0
+      ],
+      [
+        "billing_state",
+        634.0
+      ],
+      [
+        "hour_of_day",
+        471.0
+      ],
+      [
+        "mcc_code",
+        431.0
+      ],
+      [
+        "day_of_week",
+        276.0
+      ],
+      [
+        "tx_class",
+        259.0
+      ],
+      [
+        "customer_history_on_proc",
+        234.0
+      ],
+      [
+        "processor_name",
+        233.0
+      ],
+      [
+        "acquiring_bank",
+        217.0
+      ],
+      [
+        "card_brand",
+        183.0
+      ]
+    ]
+  },
+  "rebill": {
+    "name": "Rebill (Natural)",
+    "rows": 54324,
+    "auc": 0.8603631869219724,
+    "f1": 0.6989409984871406,
+    "precision": 0.5815500809206977,
+    "recall": 0.875710804224208,
+    "train_time": 0.9537482261657715,
+    "features": [
+      "processor_name",
+      "acquiring_bank",
+      "mcc_code",
+      "issuer_bank",
+      "card_brand",
+      "card_type",
+      "cycle_depth",
+      "offer_name",
+      "training_client_id",
+      "billing_state",
+      "initial_processor",
+      "last_approved_processor",
+      "is_prepaid",
+      "amount",
+      "hour_of_day",
+      "day_of_week",
+      "mid_velocity_daily",
+      "mid_velocity_weekly",
+      "customer_history_on_proc",
+      "bin_velocity_weekly",
+      "mid_age_days",
+      "consecutive_approvals",
+      "days_since_last_charge",
+      "days_since_initial",
+      "lifetime_charges",
+      "lifetime_revenue",
+      "initial_amount",
+      "amount_ratio"
+    ],
+    "top_features": [
+      [
+        "last_approved_processor",
+        898.0
+      ],
+      [
+        "issuer_bank",
+        831.0
+      ],
+      [
+        "mid_velocity_weekly",
+        710.0
+      ],
+      [
+        "mid_age_days",
+        649.0
+      ],
+      [
+        "bin_velocity_weekly",
+        600.0
+      ],
+      [
+        "billing_state",
+        499.0
+      ],
+      [
+        "days_since_last_charge",
+        476.0
+      ],
+      [
+        "mid_velocity_daily",
+        452.0
+      ],
+      [
+        "days_since_initial",
+        446.0
+      ],
+      [
+        "processor_name",
+        421.0
+      ],
+      [
+        "initial_processor",
+        387.0
+      ],
+      [
+        "lifetime_revenue",
+        329.0
+      ],
+      [
+        "hour_of_day",
+        310.0
+      ],
+      [
+        "customer_history_on_proc",
+        301.0
+      ],
+      [
+        "mcc_code",
+        290.0
+      ]
+    ]
+  },
+  "rebill_salvage": {
+    "name": "Rebill Salvage",
+    "rows": 125152,
+    "auc": 0.7860940795321311,
+    "f1": 0.3099095073176181,
+    "precision": 0.20355151159377752,
+    "recall": 0.6490407112774919,
+    "train_time": 1.8083500862121582,
+    "features": [
+      "processor_name",
+      "acquiring_bank",
+      "mcc_code",
+      "issuer_bank",
+      "card_brand",
+      "card_type",
+      "cycle_depth",
+      "offer_name",
+      "training_client_id",
+      "billing_state",
+      "initial_processor",
+      "last_approved_processor",
+      "parent_declined_processor",
+      "prev_decline_reason",
+      "is_prepaid",
+      "amount",
+      "hour_of_day",
+      "day_of_week",
+      "mid_velocity_daily",
+      "mid_velocity_weekly",
+      "customer_history_on_proc",
+      "bin_velocity_weekly",
+      "mid_age_days",
+      "attempt_number",
+      "consecutive_approvals",
+      "days_since_last_charge",
+      "days_since_initial",
+      "lifetime_charges",
+      "lifetime_revenue",
+      "initial_amount",
+      "amount_ratio",
+      "prior_declines_in_cycle",
+      "cascade_depth",
+      "cascade_n_processors"
+    ],
+    "top_features": [
+      [
+        "issuer_bank",
+        939.0
+      ],
+      [
+        "bin_velocity_weekly",
+        830.0
+      ],
+      [
+        "mid_velocity_weekly",
+        777.0
+      ],
+      [
+        "mid_velocity_daily",
+        751.0
+      ],
+      [
+        "mid_age_days",
+        590.0
+      ],
+      [
+        "billing_state",
+        586.0
+      ],
+      [
+        "days_since_initial",
+        461.0
+      ],
+      [
+        "prev_decline_reason",
+        428.0
+      ],
+      [
+        "days_since_last_charge",
+        399.0
+      ],
+      [
+        "hour_of_day",
+        392.0
+      ],
+      [
+        "amount_ratio",
+        298.0
+      ],
+      [
+        "parent_declined_processor",
+        292.0
+      ],
+      [
+        "mcc_code",
+        269.0
+      ],
+      [
+        "amount",
+        253.0
+      ],
+      [
+        "day_of_week",
+        233.0
+      ]
+    ]
+  }
+}

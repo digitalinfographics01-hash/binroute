@@ -81,7 +81,7 @@ function checkpointWalFull() {
  * Helper: run a SQL statement that modifies data (INSERT/UPDATE/DELETE).
  */
 function runSql(sql, params = []) {
-  db.prepare(sql).run(...params);
+  return db.prepare(sql).run(...params);
 }
 
 /**

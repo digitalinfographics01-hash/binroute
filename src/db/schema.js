@@ -785,6 +785,70 @@ CREATE TABLE IF NOT EXISTS transaction_attempts (
 
   UNIQUE(client_id, sticky_order_id, attempt_seq)
 );
+
+-- API keys — checkout-facing /api/route authentication (bypasses session auth)
+-- Minted via scripts/issue-api-key.js. The stored hash is bcrypt of a 32-byte random token.
+CREATE TABLE IF NOT EXISTS api_keys (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  api_key_hash TEXT NOT NULL,
+  label TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  last_used_at DATETIME,
+  revoked_at DATETIME
+);
+
+-- Shadow routing decisions — every call to /api/route logs one row here.
+-- Stage 0 shadow mode captures what the engine would have picked. Reconciliation
+-- later fills actual_* columns by parsing BinRoute_shadow marker out of order notes.
+CREATE TABLE IF NOT EXISTS shadow_decisions (
+  shadow_id TEXT PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  bin TEXT NOT NULL,
+  amount REAL,
+  product_id INTEGER,
+  email_hash TEXT,
+  sales_type TEXT DEFAULT 'INITIALS',
+
+  -- routing decision
+  recommended_gateway_id INTEGER,
+  recommended_processor TEXT,
+  confidence REAL,
+  reason TEXT,
+  candidate_pool_json TEXT,
+  lookup_has_data INTEGER,
+  lookup_best_rate REAL,
+  daemon_timed_out INTEGER DEFAULT 0,
+  daemon_latency_ms INTEGER,
+  feature_snapshot_json TEXT,
+  model_version TEXT,
+
+  -- server timing
+  request_received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  response_sent_at DATETIME,
+  latency_ms_server INTEGER,
+
+  -- client telemetry (filled by /api/route/submit-timing ping)
+  latency_ms_client INTEGER,
+  arrived_before_submit INTEGER,
+  submit_timing_at DATETIME,
+
+  -- reconciliation (filled by post-sync)
+  actual_order_id INTEGER,
+  actual_sticky_order_id INTEGER,
+  actual_gateway_id INTEGER,
+  actual_processor TEXT,
+  actual_outcome TEXT,
+  would_match INTEGER,
+  would_have_approved REAL,
+  reconciled_at DATETIME,
+
+  -- AI scoring
+  ai_model_version TEXT,
+  ai_score REAL,
+  ai_recommended_gateway_id INTEGER,
+  ai_scored_at DATETIME
+);
 `;
 
 const INDEXES_SQL = `
@@ -826,6 +890,10 @@ CREATE INDEX IF NOT EXISTS idx_ta_client_seq ON transaction_attempts(client_id, 
 CREATE INDEX IF NOT EXISTS idx_ta_order ON transaction_attempts(order_id);
 CREATE INDEX IF NOT EXISTS idx_ta_customer_role ON transaction_attempts(customer_id, derived_product_role);
 CREATE INDEX IF NOT EXISTS idx_ta_date ON transaction_attempts(acquisition_date);
+CREATE INDEX IF NOT EXISTS idx_api_keys_client ON api_keys(client_id, revoked_at);
+CREATE INDEX IF NOT EXISTS idx_shadow_client_time ON shadow_decisions(client_id, request_received_at);
+CREATE INDEX IF NOT EXISTS idx_shadow_unreconciled ON shadow_decisions(reconciled_at, request_received_at);
+CREATE INDEX IF NOT EXISTS idx_shadow_sticky_order ON shadow_decisions(actual_sticky_order_id);
 `;
 
 /**
@@ -840,6 +908,12 @@ async function initializeDatabase() {
     const safe = stmt.replace(/CREATE TABLE(?!\s+IF\s+NOT\s+EXISTS)\b/gi, 'CREATE TABLE IF NOT EXISTS');
     execSql(safe);
   }
+
+  // Migrations run BEFORE indexes so that an index referencing a new column
+  // doesn't blow up on a stale DB that hasn't had the ALTER TABLE applied yet.
+  // (Any CREATE INDEX using a column added below would fail otherwise.)
+  runMigrations();
+
   const indexStatements = INDEXES_SQL.trim().split(';').filter(s => s.trim());
   for (const stmt of indexStatements) {
     execSql(stmt);
@@ -848,7 +922,16 @@ async function initializeDatabase() {
   // Update SQLite query planner statistics for optimal index selection
   execSql('ANALYZE');
 
-  // Migrations — ALTER TABLE for existing tables (safe to re-run)
+  saveDb();
+  console.log('Database schema initialized successfully.');
+  return db;
+}
+
+/**
+ * Apply idempotent ALTER TABLE migrations. Extracted so it can run before
+ * INDEXES_SQL (indexes reference columns these migrations add).
+ */
+function runMigrations() {
   const migrations = [
     "ALTER TABLE orders ADD COLUMN prepaid TEXT DEFAULT '0'",
     "ALTER TABLE orders ADD COLUMN prepaid_match TEXT DEFAULT 'No'",
@@ -1017,6 +1100,10 @@ async function initializeDatabase() {
     "ALTER TABLE orders ADD COLUMN employee_notes TEXT DEFAULT NULL",
     "ALTER TABLE orders ADD COLUMN system_notes TEXT DEFAULT NULL",
     "ALTER TABLE orders ADD COLUMN custom_fields TEXT DEFAULT NULL",
+    // Exploration flag — gateways marked for 10% forced-exploration traffic in the
+    // routing engine. Set manually when onboarding a new processor so we collect
+    // signal on it before the AI has enough data to rank it reliably.
+    "ALTER TABLE gateways ADD COLUMN is_exploration INTEGER DEFAULT 0",
   ];
   for (const m of migrations) {
     try { execSql(m); } catch (e) {
@@ -1024,10 +1111,6 @@ async function initializeDatabase() {
       if (!e.message || !e.message.includes('duplicate column')) throw e;
     }
   }
-
-  saveDb();
-  console.log('Database schema initialized successfully.');
-  return db;
 }
 
 /**

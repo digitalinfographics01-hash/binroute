@@ -1,0 +1,770 @@
+{
+  "trained_at": "2026-04-14T11:49:24.115256",
+  "source": "transaction_attempts (feature_version >= 3)",
+  "total_attempts": 295110,
+  "train_ratio": 0.8,
+  "models": {
+    "initial": {
+      "name": "Initial (Main)",
+      "rows": 31115,
+      "approval_rate": 0.37506026032460227,
+      "winner": "LightGBM",
+      "winner_auc": 0.6598008005659418,
+      "features": [
+        "processor_name",
+        "acquiring_bank",
+        "mcc_code",
+        "issuer_bank_grouped",
+        "card_brand",
+        "card_type",
+        "billing_state",
+        "client_id",
+        "is_prepaid",
+        "hour_of_day",
+        "day_of_week",
+        "mid_velocity_daily",
+        "customer_history_on_proc",
+        "bin_velocity_weekly",
+        "mid_age_days",
+        "bin_approval_rate",
+        "bin_proc_approval_rate",
+        "te_acquiring_bank",
+        "bin_approval_7d",
+        "bin_approval_30d",
+        "amount_vs_bin_avg",
+        "is_near_payday"
+      ],
+      "top_features": [
+        {
+          "feature": "mid_age_days",
+          "importance_pct": 0.1067,
+          "importance_raw": 957.0
+        },
+        {
+          "feature": "te_acquiring_bank",
+          "importance_pct": 0.0968,
+          "importance_raw": 868.0
+        },
+        {
+          "feature": "amount_vs_bin_avg",
+          "importance_pct": 0.0918,
+          "importance_raw": 823.0
+        },
+        {
+          "feature": "mid_velocity_daily",
+          "importance_pct": 0.0904,
+          "importance_raw": 811.0
+        },
+        {
+          "feature": "bin_velocity_weekly",
+          "importance_pct": 0.0833,
+          "importance_raw": 747.0
+        },
+        {
+          "feature": "billing_state",
+          "importance_pct": 0.0692,
+          "importance_raw": 621.0
+        },
+        {
+          "feature": "issuer_bank_grouped",
+          "importance_pct": 0.0689,
+          "importance_raw": 618.0
+        },
+        {
+          "feature": "bin_proc_approval_rate",
+          "importance_pct": 0.0652,
+          "importance_raw": 585.0
+        },
+        {
+          "feature": "bin_approval_rate",
+          "importance_pct": 0.0625,
+          "importance_raw": 561.0
+        },
+        {
+          "feature": "hour_of_day",
+          "importance_pct": 0.0601,
+          "importance_raw": 539.0
+        },
+        {
+          "feature": "bin_approval_7d",
+          "importance_pct": 0.0414,
+          "importance_raw": 371.0
+        },
+        {
+          "feature": "mcc_code",
+          "importance_pct": 0.0401,
+          "importance_raw": 360.0
+        },
+        {
+          "feature": "day_of_week",
+          "importance_pct": 0.0281,
+          "importance_raw": 252.0
+        },
+        {
+          "feature": "processor_name",
+          "importance_pct": 0.0169,
+          "importance_raw": 152.0
+        },
+        {
+          "feature": "card_brand",
+          "importance_pct": 0.0158,
+          "importance_raw": 142.0
+        }
+      ],
+      "algorithms": {
+        "LightGBM": {
+          "auc": 0.6598008005659418,
+          "f1": 0.5114372032801036,
+          "precision": 0.5048998721772475,
+          "recall": 0.5181460428508964,
+          "accuracy": 0.636188333601157,
+          "log_loss": 0.6507514324988041,
+          "train_time": 3.0595414638519287
+        }
+      }
+    },
+    "upsell": {
+      "name": "Upsell",
+      "rows": 124855,
+      "approval_rate": 0.1816587241199792,
+      "winner": "LightGBM",
+      "winner_auc": 0.7748534206254172,
+      "features": [
+        "processor_name",
+        "acquiring_bank",
+        "mcc_code",
+        "issuer_bank",
+        "card_brand",
+        "card_type",
+        "offer_name",
+        "billing_state",
+        "client_id",
+        "derived_product_role",
+        "initial_processor",
+        "is_prepaid",
+        "order_total",
+        "hour_of_day",
+        "day_of_week",
+        "mid_velocity_daily",
+        "mid_velocity_weekly",
+        "customer_history_on_proc",
+        "bin_velocity_weekly",
+        "mid_age_days",
+        "initial_was_payfac",
+        "initial_amount",
+        "consecutive_approvals",
+        "days_since_initial"
+      ],
+      "top_features": [
+        {
+          "feature": "issuer_bank",
+          "importance_pct": 0.1228,
+          "importance_raw": 1104.0
+        },
+        {
+          "feature": "mid_age_days",
+          "importance_pct": 0.107,
+          "importance_raw": 962.0
+        },
+        {
+          "feature": "mid_velocity_weekly",
+          "importance_pct": 0.1055,
+          "importance_raw": 949.0
+        },
+        {
+          "feature": "bin_velocity_weekly",
+          "importance_pct": 0.0953,
+          "importance_raw": 857.0
+        },
+        {
+          "feature": "mid_velocity_daily",
+          "importance_pct": 0.0766,
+          "importance_raw": 689.0
+        },
+        {
+          "feature": "days_since_initial",
+          "importance_pct": 0.0672,
+          "importance_raw": 604.0
+        },
+        {
+          "feature": "billing_state",
+          "importance_pct": 0.054,
+          "importance_raw": 486.0
+        },
+        {
+          "feature": "hour_of_day",
+          "importance_pct": 0.0448,
+          "importance_raw": 403.0
+        },
+        {
+          "feature": "order_total",
+          "importance_pct": 0.0443,
+          "importance_raw": 398.0
+        },
+        {
+          "feature": "mcc_code",
+          "importance_pct": 0.0428,
+          "importance_raw": 385.0
+        },
+        {
+          "feature": "initial_processor",
+          "importance_pct": 0.0364,
+          "importance_raw": 327.0
+        },
+        {
+          "feature": "day_of_week",
+          "importance_pct": 0.0269,
+          "importance_raw": 242.0
+        },
+        {
+          "feature": "customer_history_on_proc",
+          "importance_pct": 0.0264,
+          "importance_raw": 237.0
+        },
+        {
+          "feature": "processor_name",
+          "importance_pct": 0.0244,
+          "importance_raw": 219.0
+        },
+        {
+          "feature": "initial_amount",
+          "importance_pct": 0.0226,
+          "importance_raw": 203.0
+        }
+      ],
+      "algorithms": {
+        "Logistic Regression": {
+          "auc": 0.6401701430466137,
+          "f1": 0.3418744388424615,
+          "precision": 0.24389042175798187,
+          "recall": 0.5714615562225814,
+          "accuracy": 0.618397340915462,
+          "log_loss": 0.7067681656625208,
+          "train_time": 0.1728529930114746
+        },
+        "Random Forest": {
+          "auc": 0.7528092944501422,
+          "f1": 0.44545930972523773,
+          "precision": 0.3296033680478617,
+          "recall": 0.6869083352574463,
+          "accuracy": 0.7033759160626326,
+          "log_loss": 0.5681091676935031,
+          "train_time": 6.620564699172974
+        },
+        "XGBoost": {
+          "auc": 0.7699756823441603,
+          "f1": 0.4658437765005182,
+          "precision": 0.39350525310410694,
+          "recall": 0.5707688755483722,
+          "accuracy": 0.7729766529173842,
+          "log_loss": 0.474281126276068,
+          "train_time": 2.812762975692749
+        },
+        "LightGBM": {
+          "auc": 0.7748534206254172,
+          "f1": 0.46358124184511473,
+          "precision": 0.34720625431133595,
+          "recall": 0.6972985453705841,
+          "accuracy": 0.7201153337871932,
+          "log_loss": 0.5556998289870315,
+          "train_time": 1.579998254776001
+        },
+        "CatBoost": {
+          "auc": 0.7741183311586382,
+          "f1": 0.46071199486850545,
+          "precision": 0.35290504851983784,
+          "recall": 0.6633571923343339,
+          "accuracy": 0.7306475511593449,
+          "log_loss": 0.5321669584118867,
+          "train_time": 7.2347166538238525
+        }
+      }
+    },
+    "cascade": {
+      "name": "Cascade",
+      "rows": 22537,
+      "approval_rate": 0.010027954031148778,
+      "winner": "Logistic Regression",
+      "winner_auc": 0.9132311427280939,
+      "features": [
+        "processor_name",
+        "acquiring_bank",
+        "mcc_code",
+        "issuer_bank",
+        "card_brand",
+        "card_type",
+        "offer_name",
+        "billing_state",
+        "initial_decline_reason",
+        "initial_declined_processor",
+        "is_prepaid",
+        "order_total",
+        "hour_of_day",
+        "day_of_week",
+        "mid_velocity_daily",
+        "mid_velocity_weekly",
+        "customer_history_on_proc",
+        "bin_velocity_weekly",
+        "mid_age_days",
+        "attempt_seq",
+        "cascade_position",
+        "total_attempts",
+        "had_nsf",
+        "had_do_not_honor",
+        "had_pickup"
+      ],
+      "top_features": [
+        {
+          "feature": "total_attempts",
+          "importance_pct": 0.4059,
+          "importance_raw": 10.0
+        },
+        {
+          "feature": "attempt_seq",
+          "importance_pct": 0.1234,
+          "importance_raw": 3.0
+        },
+        {
+          "feature": "cascade_position",
+          "importance_pct": 0.1234,
+          "importance_raw": 3.0
+        },
+        {
+          "feature": "offer_name",
+          "importance_pct": 0.0682,
+          "importance_raw": 1.7
+        },
+        {
+          "feature": "had_nsf",
+          "importance_pct": 0.0414,
+          "importance_raw": 1.0
+        },
+        {
+          "feature": "mid_age_days",
+          "importance_pct": 0.037,
+          "importance_raw": 0.9
+        },
+        {
+          "feature": "had_do_not_honor",
+          "importance_pct": 0.0297,
+          "importance_raw": 0.7
+        },
+        {
+          "feature": "mid_velocity_weekly",
+          "importance_pct": 0.0239,
+          "importance_raw": 0.6
+        },
+        {
+          "feature": "initial_declined_processor",
+          "importance_pct": 0.0194,
+          "importance_raw": 0.5
+        },
+        {
+          "feature": "order_total",
+          "importance_pct": 0.0178,
+          "importance_raw": 0.4
+        },
+        {
+          "feature": "mid_velocity_daily",
+          "importance_pct": 0.0164,
+          "importance_raw": 0.4
+        },
+        {
+          "feature": "had_pickup",
+          "importance_pct": 0.0163,
+          "importance_raw": 0.4
+        },
+        {
+          "feature": "card_brand",
+          "importance_pct": 0.0123,
+          "importance_raw": 0.3
+        },
+        {
+          "feature": "processor_name",
+          "importance_pct": 0.0122,
+          "importance_raw": 0.3
+        },
+        {
+          "feature": "bin_velocity_weekly",
+          "importance_pct": 0.0113,
+          "importance_raw": 0.3
+        }
+      ],
+      "algorithms": {
+        "Logistic Regression": {
+          "auc": 0.9132311427280939,
+          "f1": 0.1378640776699029,
+          "precision": 0.07473684210526316,
+          "recall": 0.8875,
+          "accuracy": 0.80301685891748,
+          "log_loss": 0.4802197393658727,
+          "train_time": 0.043984413146972656
+        },
+        "Random Forest": {
+          "auc": 0.772045788166215,
+          "f1": 0.35051546391752575,
+          "precision": 1.0,
+          "recall": 0.2125,
+          "accuracy": 0.9860248447204969,
+          "log_loss": 0.12586133346139528,
+          "train_time": 0.7371654510498047
+        },
+        "XGBoost": {
+          "auc": 0.8718241869918699,
+          "f1": 0.44660194174757284,
+          "precision": 1.0,
+          "recall": 0.2875,
+          "accuracy": 0.9873558118899733,
+          "log_loss": 0.08119587663995119,
+          "train_time": 0.6983208656311035
+        },
+        "LightGBM": {
+          "auc": 0.9082429990966576,
+          "f1": 0.41509433962264153,
+          "precision": 0.8461538461538461,
+          "recall": 0.275,
+          "accuracy": 0.9862466725820763,
+          "log_loss": 0.17013289278015614,
+          "train_time": 0.629340648651123
+        },
+        "CatBoost": {
+          "auc": 0.8572733175248419,
+          "f1": 0.4423076923076923,
+          "precision": 0.9583333333333334,
+          "recall": 0.2875,
+          "accuracy": 0.9871339840283939,
+          "log_loss": 0.0663335057055233,
+          "train_time": 3.4501428604125977
+        }
+      }
+    },
+    "rebill": {
+      "name": "Rebill (Main)",
+      "rows": 34139,
+      "approval_rate": 0.16040305808605992,
+      "winner": "CatBoost",
+      "winner_auc": 0.9063278895637994,
+      "features": [
+        "processor_name",
+        "acquiring_bank",
+        "mcc_code",
+        "issuer_bank",
+        "card_brand",
+        "card_type",
+        "offer_name",
+        "billing_state",
+        "card_level",
+        "is_prepaid",
+        "order_total",
+        "hour_of_day",
+        "day_of_week",
+        "mid_velocity_daily",
+        "mid_velocity_weekly",
+        "customer_history_on_proc",
+        "bin_velocity_weekly",
+        "consecutive_approvals",
+        "days_since_last_charge",
+        "days_since_initial",
+        "lifetime_charges",
+        "lifetime_revenue",
+        "initial_amount",
+        "amount_ratio",
+        "initial_was_payfac",
+        "target_proc_rebill_rate",
+        "initial_proc_rebill_rate",
+        "last_proc_rebill_rate",
+        "is_same_as_initial",
+        "is_same_as_last"
+      ],
+      "top_features": [
+        {
+          "feature": "is_same_as_last",
+          "importance_pct": 0.3345,
+          "importance_raw": 33.4
+        },
+        {
+          "feature": "target_proc_rebill_rate",
+          "importance_pct": 0.0486,
+          "importance_raw": 4.9
+        },
+        {
+          "feature": "issuer_bank",
+          "importance_pct": 0.0484,
+          "importance_raw": 4.8
+        },
+        {
+          "feature": "last_proc_rebill_rate",
+          "importance_pct": 0.044,
+          "importance_raw": 4.4
+        },
+        {
+          "feature": "mid_velocity_weekly",
+          "importance_pct": 0.0411,
+          "importance_raw": 4.1
+        },
+        {
+          "feature": "billing_state",
+          "importance_pct": 0.0365,
+          "importance_raw": 3.6
+        },
+        {
+          "feature": "mid_velocity_daily",
+          "importance_pct": 0.0359,
+          "importance_raw": 3.6
+        },
+        {
+          "feature": "bin_velocity_weekly",
+          "importance_pct": 0.0357,
+          "importance_raw": 3.6
+        },
+        {
+          "feature": "mcc_code",
+          "importance_pct": 0.0304,
+          "importance_raw": 3.0
+        },
+        {
+          "feature": "amount_ratio",
+          "importance_pct": 0.027,
+          "importance_raw": 2.7
+        },
+        {
+          "feature": "lifetime_revenue",
+          "importance_pct": 0.0254,
+          "importance_raw": 2.5
+        },
+        {
+          "feature": "hour_of_day",
+          "importance_pct": 0.0254,
+          "importance_raw": 2.5
+        },
+        {
+          "feature": "day_of_week",
+          "importance_pct": 0.0249,
+          "importance_raw": 2.5
+        },
+        {
+          "feature": "order_total",
+          "importance_pct": 0.0235,
+          "importance_raw": 2.4
+        },
+        {
+          "feature": "card_level",
+          "importance_pct": 0.0235,
+          "importance_raw": 2.4
+        }
+      ],
+      "algorithms": {
+        "Logistic Regression": {
+          "auc": 0.874088627228677,
+          "f1": 0.6527405136067459,
+          "precision": 0.517314702308627,
+          "recall": 0.8842159916926272,
+          "accuracy": 0.7346221441124781,
+          "log_loss": 0.6957011452103733,
+          "train_time": 0.10847830772399902
+        },
+        "Random Forest": {
+          "auc": 0.902009924107523,
+          "f1": 0.6655231560891939,
+          "precision": 0.5257452574525745,
+          "recall": 0.9065420560747663,
+          "accuracy": 0.7429701230228472,
+          "log_loss": 0.5068104415034206,
+          "train_time": 1.3424785137176514
+        },
+        "XGBoost": {
+          "auc": 0.8953507437361061,
+          "f1": 0.7027481772293886,
+          "precision": 0.7640243902439025,
+          "recall": 0.6505711318795431,
+          "accuracy": 0.8447568834212068,
+          "log_loss": 0.39078373263347693,
+          "train_time": 1.2658202648162842
+        },
+        "LightGBM": {
+          "auc": 0.8889796607483837,
+          "f1": 0.6987128972944576,
+          "precision": 0.7070707070707071,
+          "recall": 0.6905503634475597,
+          "accuracy": 0.8320152314001171,
+          "log_loss": 0.3742608062650124,
+          "train_time": 0.6854679584503174
+        },
+        "CatBoost": {
+          "auc": 0.9063278895637994,
+          "f1": 0.7310239429444727,
+          "precision": 0.7175,
+          "recall": 0.745067497403946,
+          "accuracy": 0.8453427065026362,
+          "log_loss": 0.3501558508447925,
+          "train_time": 4.834478855133057
+        }
+      }
+    },
+    "rebill_salvage": {
+      "name": "Rebill Salvage (Main)",
+      "rows": 82464,
+      "approval_rate": 0.029916084594489717,
+      "winner": "LightGBM",
+      "winner_auc": 0.6567569509489295,
+      "features": [
+        "processor_name",
+        "acquiring_bank",
+        "mcc_code",
+        "issuer_bank",
+        "card_brand",
+        "card_type",
+        "offer_name",
+        "billing_state",
+        "initial_processor",
+        "last_approved_processor",
+        "parent_declined_processor",
+        "prev_decline_reason",
+        "is_prepaid",
+        "order_total",
+        "hour_of_day",
+        "day_of_week",
+        "mid_velocity_daily",
+        "mid_velocity_weekly",
+        "customer_history_on_proc",
+        "bin_velocity_weekly",
+        "mid_age_days",
+        "attempt_seq",
+        "consecutive_approvals",
+        "days_since_last_charge",
+        "days_since_initial",
+        "lifetime_charges",
+        "lifetime_revenue",
+        "initial_amount",
+        "amount_ratio",
+        "prior_declines_in_cycle",
+        "cascade_position",
+        "total_attempts"
+      ],
+      "top_features": [
+        {
+          "feature": "issuer_bank",
+          "importance_pct": 0.1018,
+          "importance_raw": 915.0
+        },
+        {
+          "feature": "mid_velocity_weekly",
+          "importance_pct": 0.0941,
+          "importance_raw": 846.0
+        },
+        {
+          "feature": "bin_velocity_weekly",
+          "importance_pct": 0.0936,
+          "importance_raw": 841.0
+        },
+        {
+          "feature": "mid_velocity_daily",
+          "importance_pct": 0.0877,
+          "importance_raw": 788.0
+        },
+        {
+          "feature": "mid_age_days",
+          "importance_pct": 0.0841,
+          "importance_raw": 756.0
+        },
+        {
+          "feature": "billing_state",
+          "importance_pct": 0.069,
+          "importance_raw": 620.0
+        },
+        {
+          "feature": "hour_of_day",
+          "importance_pct": 0.0491,
+          "importance_raw": 441.0
+        },
+        {
+          "feature": "days_since_last_charge",
+          "importance_pct": 0.0442,
+          "importance_raw": 397.0
+        },
+        {
+          "feature": "prev_decline_reason",
+          "importance_pct": 0.0413,
+          "importance_raw": 371.0
+        },
+        {
+          "feature": "parent_declined_processor",
+          "importance_pct": 0.0379,
+          "importance_raw": 341.0
+        },
+        {
+          "feature": "days_since_initial",
+          "importance_pct": 0.0342,
+          "importance_raw": 307.0
+        },
+        {
+          "feature": "day_of_week",
+          "importance_pct": 0.0288,
+          "importance_raw": 259.0
+        },
+        {
+          "feature": "mcc_code",
+          "importance_pct": 0.0271,
+          "importance_raw": 244.0
+        },
+        {
+          "feature": "last_approved_processor",
+          "importance_pct": 0.0253,
+          "importance_raw": 227.0
+        },
+        {
+          "feature": "amount_ratio",
+          "importance_pct": 0.0245,
+          "importance_raw": 220.0
+        }
+      ],
+      "algorithms": {
+        "Logistic Regression": {
+          "auc": 0.6195679812550366,
+          "f1": 0.11301500266544817,
+          "precision": 0.06063577674266569,
+          "recall": 0.8299776286353467,
+          "accuracy": 0.29382162129388223,
+          "log_loss": 0.9979484634217809,
+          "train_time": 0.280747652053833
+        },
+        "Random Forest": {
+          "auc": 0.6476756741562479,
+          "f1": 0.14828209764918626,
+          "precision": 0.1244309559939302,
+          "recall": 0.18344519015659955,
+          "accuracy": 0.8857697204874795,
+          "log_loss": 0.4714427686465953,
+          "train_time": 4.117993354797363
+        },
+        "XGBoost": {
+          "auc": 0.6090890140522689,
+          "f1": 0.035678889990089196,
+          "precision": 0.1565217391304348,
+          "recall": 0.020134228187919462,
+          "accuracy": 0.9410052749651368,
+          "log_loss": 0.23910804316642353,
+          "train_time": 2.1748270988464355
+        },
+        "LightGBM": {
+          "auc": 0.6567569509489295,
+          "f1": 0.17444364680545585,
+          "precision": 0.1284355179704017,
+          "recall": 0.27181208053691275,
+          "accuracy": 0.8605468986842904,
+          "log_loss": 0.35323044143521315,
+          "train_time": 1.2455835342407227
+        },
+        "CatBoost": {
+          "auc": 0.5988864082809187,
+          "f1": 0.1334141904184354,
+          "precision": 0.1456953642384106,
+          "recall": 0.12304250559284116,
+          "accuracy": 0.9133571818347178,
+          "log_loss": 0.28386128587652154,
+          "train_time": 6.647543907165527
+        }
+      }
+    }
+  }
+}

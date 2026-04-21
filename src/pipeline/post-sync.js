@@ -6,11 +6,13 @@
  *   2. Compute derived_product_role
  *   3. Compute processing_gateway_id
  *   4. Compute derived_cycle + derived_attempt
+ *   5. Extract tx_features for AI training
+ *   6. Reconcile shadow decisions against imported orders
  *
  * Uses the server's in-memory DB connection (querySql/runSql).
  * Must complete BEFORE analytics recompute.
  */
-const { querySql, runSql, saveDb } = require('../db/connection');
+const { querySql, queryOneSql, runSql, saveDb } = require('../db/connection');
 
 /**
  * Run the full post-sync pipeline for a client.
@@ -48,11 +50,15 @@ function runPostSyncPipeline(clientId) {
   const featuresExtracted = extractFeatures(clientId);
   console.log(`[PostSync] Step 5: Extracted ${featuresExtracted} tx features`);
 
+  // Step 6: Reconcile shadow decisions against imported orders
+  const reconciled = reconcileShadowDecisions(clientId);
+  console.log(`[PostSync] Step 6: Reconciled ${reconciled.matched} shadow rows (${reconciled.scanned} orders scanned)`);
+
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
   console.log(`[PostSync] Pipeline complete in ${elapsed}s`);
 
   saveDb();
-  return { classified, rolesSet, cyclesSet, featuresExtracted };
+  return { classified, rolesSet, cyclesSet, featuresExtracted, reconciled };
 }
 
 // ---------------------------------------------------------------------------
@@ -363,4 +369,135 @@ function _computeCycleAndAttempt(clientId) {
   return updates.length;
 }
 
-module.exports = { runPostSyncPipeline };
+// ---------------------------------------------------------------------------
+// Step 6: Reconcile shadow decisions against imported orders
+// ---------------------------------------------------------------------------
+//
+// Flow:
+//   - Shadow decisions are logged by /api/route at checkout time with a UUID.
+//   - The PHP extension appends "BinRoute_shadow: id=<uuid> ..." to the order's
+//     customNotes before submission.
+//   - Sticky.io surfaces customNotes back on the imported order. The exact
+//     column depends on how Sticky routes it — we scan all three candidates
+//     (employee_notes, system_notes, custom_fields) for defensiveness.
+//   - For each order carrying a shadow marker that hasn't been reconciled yet,
+//     we extract the UUID, look up the shadow_decisions row, and fill in the
+//     actual_* columns + would_match + reconciled_at.
+//
+// Idempotent: rows where reconciled_at IS NOT NULL are skipped.
+// Returns: { scanned, matched, skipped_reconciled, skipped_orphan }.
+const SHADOW_MARKER_RE = /BinRoute_shadow:\s*id=([a-fA-F0-9-]{8,})/;
+
+function reconcileShadowDecisions(clientId) {
+  // Fast path: any rows to scan?
+  const pendingCount = queryOneSql(
+    `SELECT COUNT(*) AS n FROM shadow_decisions
+      WHERE client_id = ? AND reconciled_at IS NULL`,
+    [clientId]
+  );
+  if (!pendingCount || pendingCount.n === 0) {
+    return { scanned: 0, matched: 0, skipped_reconciled: 0, skipped_orphan: 0 };
+  }
+
+  // Pull orders for this client that carry the marker in ANY of the 3 notes fields.
+  // We scope to the client to avoid scanning the whole orders table.
+  const orders = querySql(
+    `SELECT o.id               AS order_id,
+            o.order_id         AS sticky_order_id,
+            o.gateway_id       AS actual_gateway_id,
+            o.order_status,
+            o.employee_notes,
+            o.system_notes,
+            o.custom_fields,
+            g.processor_name   AS actual_processor
+       FROM orders o
+  LEFT JOIN gateways g
+         ON g.client_id = o.client_id
+        AND g.gateway_id = o.gateway_id
+      WHERE o.client_id = ?
+        AND (
+          (o.employee_notes IS NOT NULL AND o.employee_notes LIKE '%BinRoute_shadow%') OR
+          (o.system_notes   IS NOT NULL AND o.system_notes   LIKE '%BinRoute_shadow%') OR
+          (o.custom_fields  IS NOT NULL AND o.custom_fields  LIKE '%BinRoute_shadow%')
+        )`,
+    [clientId]
+  );
+
+  let matched = 0;
+  let skippedReconciled = 0;
+  let skippedOrphan = 0;
+  const scanned = orders.length;
+
+  for (const o of orders) {
+    // Extract shadow_id from whichever notes field contains it.
+    const shadowId = _extractShadowId(o.employee_notes)
+                  || _extractShadowId(o.system_notes)
+                  || _extractShadowId(o.custom_fields);
+    if (!shadowId) continue;
+
+    // Look up the shadow decision. Scope by client to prevent cross-client
+    // matches even if a UUID somehow collided.
+    const shadow = queryOneSql(
+      `SELECT shadow_id, recommended_gateway_id, reconciled_at
+         FROM shadow_decisions
+        WHERE shadow_id = ? AND client_id = ?`,
+      [shadowId, clientId]
+    );
+    if (!shadow) {
+      // Orphan: order carries a marker but the shadow row is gone / came from
+      // another env / was manually deleted. Skip silently; do not error.
+      skippedOrphan++;
+      continue;
+    }
+    if (shadow.reconciled_at != null) {
+      // Already reconciled — idempotent skip.
+      skippedReconciled++;
+      continue;
+    }
+
+    // Map Sticky status codes → outcome label (per project_order_status_codes.md).
+    const status = parseInt(o.order_status, 10);
+    let outcome;
+    if (status === 2 || status === 6 || status === 8) outcome = 'approved';
+    else if (status === 7) outcome = 'declined';
+    else outcome = 'pending';
+
+    const wouldMatch = (shadow.recommended_gateway_id != null
+                    && shadow.recommended_gateway_id === o.actual_gateway_id) ? 1 : 0;
+
+    runSql(
+      `UPDATE shadow_decisions
+          SET actual_order_id        = ?,
+              actual_sticky_order_id = ?,
+              actual_gateway_id      = ?,
+              actual_processor       = ?,
+              actual_outcome         = ?,
+              would_match            = ?,
+              reconciled_at          = CURRENT_TIMESTAMP
+        WHERE shadow_id = ? AND reconciled_at IS NULL`,
+      [
+        o.order_id,
+        o.sticky_order_id,
+        o.actual_gateway_id,
+        o.actual_processor,
+        outcome,
+        wouldMatch,
+        shadowId,
+      ]
+    );
+    matched++;
+  }
+
+  saveDb();
+  return { scanned, matched, skipped_reconciled: skippedReconciled, skipped_orphan: skippedOrphan };
+}
+
+/** Extract the shadow UUID from a notes-field value, or null. */
+function _extractShadowId(notesField) {
+  if (notesField == null) return null;
+  const s = typeof notesField === 'string' ? notesField : String(notesField);
+  const m = s.match(SHADOW_MARKER_RE);
+  return m ? m[1] : null;
+}
+
+module.exports = { runPostSyncPipeline, reconcileShadowDecisions };

@@ -14,7 +14,7 @@ const { computeVelocityFeatures } = require('../analytics/velocity-features');
 const { computeSubscriptionFeatures } = require('../analytics/subscription-features');
 const { querySql } = require('../db/connection');
 
-const RETRAIN_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'ml', 'retrain.py');
+const RETRAIN_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'ml', 'train_four_models.py');
 
 /**
  * Run the full retrain pipeline.
@@ -56,9 +56,9 @@ function runRetrain() {
   console.log('[ML Retrain] Step 3: Python retrain...');
   let retrainOutput = '';
   try {
-    retrainOutput = execSync(`py -3 "${RETRAIN_SCRIPT}"`, {
+    retrainOutput = execSync(`python3 "${RETRAIN_SCRIPT}"`, {
       cwd: path.join(__dirname, '..', '..'),
-      timeout: 300000, // 5 min max
+      timeout: 1200000, // 20 min max (enrichment + 5 model training)
       encoding: 'utf8',
     });
     console.log(retrainOutput);

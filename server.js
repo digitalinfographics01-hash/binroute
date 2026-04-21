@@ -73,6 +73,15 @@ app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
+// Shadow routing endpoint — API-key auth (not session). Mounted BEFORE the
+// session auth middleware so the checkout can POST without a cookie.
+// See: plans/steady-sparking-island.md (Stage 0 shadow mode).
+app.use(
+  '/api/route',
+  require('./src/middleware/api-key-auth'),
+  require('./src/routes/route')
+);
+
 // Auth middleware — protect everything except login
 app.use((req, res, next) => {
   // Allow login page assets
