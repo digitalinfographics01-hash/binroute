@@ -85,8 +85,11 @@ MODEL_CONFIGS = {
             'billing_state', 'client_id',
         ],
         'numerical': [
+            # customer_history_on_proc REMOVED in P1.1 — unknown at BIN-entry
+            # time, zeroing it at inference creates train/serve skew.
+            # is_weekend kept for training experiment but daemon strips it.
             'is_prepaid', 'hour_of_day', 'day_of_week',
-            'mid_velocity_daily', 'customer_history_on_proc',
+            'mid_velocity_daily',
             'bin_velocity_weekly', 'mid_age_days',
             'bin_approval_rate', 'bin_proc_approval_rate',
             'te_acquiring_bank', 'bin_approval_7d', 'bin_approval_30d',

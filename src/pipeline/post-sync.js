@@ -458,9 +458,10 @@ function reconcileShadowDecisions(clientId) {
     // Map Sticky status codes → outcome label (per project_order_status_codes.md).
     const status = parseInt(o.order_status, 10);
     let outcome;
-    if (status === 2 || status === 6 || status === 8) outcome = 'approved';
-    else if (status === 7) outcome = 'declined';
-    else outcome = 'pending';
+    let outcomeBinary;  // P3.4: 0/1 for efficient aggregation
+    if (status === 2 || status === 6 || status === 8) { outcome = 'approved'; outcomeBinary = 1; }
+    else if (status === 7) { outcome = 'declined'; outcomeBinary = 0; }
+    else { outcome = 'pending'; outcomeBinary = null; } // don't count pending in uplift
 
     const wouldMatch = (shadow.recommended_gateway_id != null
                     && shadow.recommended_gateway_id === o.actual_gateway_id) ? 1 : 0;
@@ -472,6 +473,7 @@ function reconcileShadowDecisions(clientId) {
               actual_gateway_id      = ?,
               actual_processor       = ?,
               actual_outcome         = ?,
+              actual_outcome_binary  = ?,
               would_match            = ?,
               reconciled_at          = CURRENT_TIMESTAMP
         WHERE shadow_id = ? AND reconciled_at IS NULL`,
@@ -481,6 +483,7 @@ function reconcileShadowDecisions(clientId) {
         o.actual_gateway_id,
         o.actual_processor,
         outcome,
+        outcomeBinary,
         wouldMatch,
         shadowId,
       ]

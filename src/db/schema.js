@@ -894,6 +894,9 @@ CREATE INDEX IF NOT EXISTS idx_api_keys_client ON api_keys(client_id, revoked_at
 CREATE INDEX IF NOT EXISTS idx_shadow_client_time ON shadow_decisions(client_id, request_received_at);
 CREATE INDEX IF NOT EXISTS idx_shadow_unreconciled ON shadow_decisions(reconciled_at, request_received_at);
 CREATE INDEX IF NOT EXISTS idx_shadow_sticky_order ON shadow_decisions(actual_sticky_order_id);
+CREATE INDEX IF NOT EXISTS idx_shadow_client_tier ON shadow_decisions(client_id, confidence_tier);
+CREATE INDEX IF NOT EXISTS idx_shadow_issuer_cardtype ON shadow_decisions(issuer_bank, card_type);
+CREATE INDEX IF NOT EXISTS idx_shadow_disagreement ON shadow_decisions(ai_disagreed_with_lookup, reconciled_at);
 `;
 
 /**
@@ -1104,6 +1107,39 @@ function runMigrations() {
     // routing engine. Set manually when onboarding a new processor so we collect
     // signal on it before the AI has enough data to rank it reliably.
     "ALTER TABLE gateways ADD COLUMN is_exploration INTEGER DEFAULT 0",
+
+    // P3.1: Shadow logging upgrade — promote fields from JSON to top-level columns
+    // for efficient dashboard queries (uplift, regret, V2 replay).
+
+    // Transaction-level context (spec §4.1)
+    "ALTER TABLE shadow_decisions ADD COLUMN merchant_vertical TEXT DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN issuer_bank TEXT DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN card_type TEXT DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN card_brand TEXT DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN is_prepaid INTEGER DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN hour_of_day INTEGER DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN day_of_week INTEGER DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN amount_vs_bin_avg REAL DEFAULT NULL",
+
+    // Decision metadata (spec §4.2) — uplift + regret + disagreement analysis
+    "ALTER TABLE shadow_decisions ADD COLUMN lookup_best_gateway_id INTEGER DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN ai_disagreed_with_lookup INTEGER DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN confidence_tier TEXT DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN ai_score_spread REAL DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN lookup_score_spread REAL DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN best_lookup_rate REAL DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN chosen_lookup_rate REAL DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN regret REAL DEFAULT NULL",
+
+    // Outcome numeric form (spec §4.3) — 0/1 for efficient aggregation
+    "ALTER TABLE shadow_decisions ADD COLUMN actual_outcome_binary INTEGER DEFAULT NULL",
+
+    // Stage-0 uplift proxy + EAR input
+    "ALTER TABLE shadow_decisions ADD COLUMN would_have_approved_binary INTEGER DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN expected_approval REAL DEFAULT NULL",
+
+    // Merchant vertical on clients table (for P3.2 query)
+    "ALTER TABLE clients ADD COLUMN merchant_vertical TEXT DEFAULT NULL",
   ];
   for (const m of migrations) {
     try { execSql(m); } catch (e) {

@@ -56,10 +56,11 @@ INITIAL_CATEGORICAL = [
     'billing_state', 'client_id',
 ]
 INITIAL_NUMERICAL = [
-    # Order MUST match four_model_results.json feature list (22 total).
-    # is_weekend was an experiment feature; the shipped pkl was trained without it.
+    # Order MUST match MODEL_CONFIGS['initial']['numerical'] in train_four_models.py.
+    # customer_history_on_proc REMOVED in P1.1 — unknown at BIN-entry time (no
+    # customer_id), zeroing it creates train/serve skew worse than losing ~5% signal.
     'is_prepaid', 'hour_of_day', 'day_of_week',
-    'mid_velocity_daily', 'customer_history_on_proc',
+    'mid_velocity_daily',
     'bin_velocity_weekly', 'mid_age_days',
     'bin_approval_rate', 'bin_proc_approval_rate',
     'te_acquiring_bank', 'bin_approval_7d', 'bin_approval_30d',
@@ -93,6 +94,15 @@ _state: dict = {
     # so the AI doesn't under-rank a new MID just because it's young.
     'mid_age_by_pb': {},      # (processor, bank) -> median age_days of mature MIDs
     'mid_vel_by_pb': {},      # (processor, bank) -> median mid_velocity_daily of mature MIDs
+    # P1.2: BIN event timestamps for computing bin_velocity_weekly at request time.
+    # bin -> sorted np.array of unix-second timestamps (last 35 days).
+    'bin_recent_events': {},
+    # P1.4: BIN approval timestamps for computing bin_approval_7d/30d at request time.
+    # bin -> sorted np.array of unix-second timestamps for APPROVED orders (last 35 days).
+    'bin_recent_approvals': {},
+    # P1.3: MID event timestamps for computing mid_velocity_daily at request time.
+    # gateway_id -> sorted np.array of unix-second timestamps (last 7 days).
+    'mid_recent_events': {},
 }
 
 
@@ -265,6 +275,63 @@ def _refresh_caches(db_path: Path) -> None:
             conn,
         )
 
+        # P1.2 + P1.4: Recent BIN events for bin_velocity_weekly and bin_approval_7d/30d.
+        # Pull last 35 days of orders with timestamps. We store two caches:
+        #   bin_recent_events   — all attempts (for velocity count)
+        #   bin_recent_approvals — approved only (for windowed approval rates)
+        # At request time: np.searchsorted gives O(log n) window counts.
+        bin_events_df = pd.read_sql_query(
+            f'''
+            SELECT o.cc_first_6 AS bin,
+                   strftime('%s', o.acquisition_date) AS ts,
+                   CASE WHEN o.order_status IN (2,6,8) THEN 1 ELSE 0 END AS approved
+              FROM orders o
+             WHERE o.cc_first_6 IS NOT NULL
+               AND o.acquisition_date >= datetime('now', '-35 days')
+               AND o.acquisition_date IS NOT NULL
+               {test_filter_o}
+             ORDER BY o.cc_first_6, o.acquisition_date
+            ''',
+            conn,
+        )
+        bin_events_df['ts'] = pd.to_numeric(bin_events_df['ts'], errors='coerce')
+        bin_events_df = bin_events_df.dropna(subset=['ts'])
+
+        # Build per-BIN sorted arrays of timestamps.
+        bin_recent_events: dict[str, np.ndarray] = {}
+        bin_recent_approvals: dict[str, np.ndarray] = {}
+        if not bin_events_df.empty:
+            for bin_val, grp in bin_events_df.groupby('bin'):
+                ts_arr = grp['ts'].values.astype(np.float64)
+                bin_recent_events[bin_val] = ts_arr  # already sorted by ORDER BY
+                approved_mask = grp['approved'].values == 1
+                if approved_mask.any():
+                    bin_recent_approvals[bin_val] = ts_arr[approved_mask]
+
+        # P1.3: MID event timestamps for mid_velocity_daily at request time.
+        # Training semantics: count of same-day same-MID attempts. We cache the
+        # last 7 days of per-gateway timestamps and count today's events at request time.
+        mid_events_df = pd.read_sql_query(
+            f'''
+            SELECT o.gateway_id AS gw,
+                   strftime('%s', o.acquisition_date) AS ts
+              FROM orders o
+             WHERE o.gateway_id IS NOT NULL
+               AND o.acquisition_date >= datetime('now', '-7 days')
+               AND o.acquisition_date IS NOT NULL
+               {test_filter_o}
+             ORDER BY o.gateway_id, o.acquisition_date
+            ''',
+            conn,
+        )
+        mid_events_df['ts'] = pd.to_numeric(mid_events_df['ts'], errors='coerce')
+        mid_events_df = mid_events_df.dropna(subset=['ts'])
+
+        mid_recent_events: dict[int, np.ndarray] = {}
+        if not mid_events_df.empty:
+            for gw_id, grp in mid_events_df.groupby('gw'):
+                mid_recent_events[int(gw_id)] = grp['ts'].values.astype(np.float64)
+
         # Rebuild label encoders for categorical columns by pulling distinct values
         # from tx_features (same source + preprocessing training used). sklearn's
         # LabelEncoder sorts input via np.unique, so as long as we feed the same
@@ -335,6 +402,13 @@ def _refresh_caches(db_path: Path) -> None:
         else:
             _state['mid_age_by_pb'] = {}
             _state['mid_vel_by_pb'] = {}
+
+        # P1.2 + P1.4: BIN event caches.
+        _state['bin_recent_events'] = bin_recent_events
+        _state['bin_recent_approvals'] = bin_recent_approvals
+        # P1.3: MID event cache.
+        _state['mid_recent_events'] = mid_recent_events
+
     dt = time.time() - t0
     print(
         f'[scoring_daemon] caches refreshed in {dt:.2f}s: '
@@ -343,6 +417,8 @@ def _refresh_caches(db_path: Path) -> None:
         f'{len(_state["te_acq_bank"])} banks, '
         f'{len(_state["top_issuers"])} top issuers, '
         f'{len(_state["mid_age_by_pb"])} (proc,bank) MID priors, '
+        f'{len(_state["bin_recent_events"])} BIN event series, '
+        f'{len(_state["mid_recent_events"])} MID event series, '
         f'{len(_state["encoders"])} label encoders',
         flush=True,
     )
@@ -384,6 +460,9 @@ def _assemble_features(payload: dict) -> pd.DataFrame:
         top_issuers = _state['top_issuers']
         mid_age_by_pb = _state['mid_age_by_pb']
         mid_vel_by_pb = _state['mid_vel_by_pb']
+        bin_recent_events = _state['bin_recent_events']
+        bin_recent_approvals = _state['bin_recent_approvals']
+        mid_recent_events = _state['mid_recent_events']
 
     issuer = bin_feats.get('issuer_bank')
     issuer_grouped = issuer if issuer in top_issuers else 'OTHER'
@@ -400,11 +479,39 @@ def _assemble_features(payload: dict) -> pd.DataFrame:
         except Exception:
             amt_vs_bin = None
 
-    # BIN 7d / 30d approval rates: not precomputed here (too expensive per request).
-    # The daemon can refresh these periodically; for MVP we fall back to the
-    # all-time bin_rate as an unbiased prior. This is a known simplification.
-    bin_rate_7d = bin_rate
-    bin_rate_30d = bin_rate
+    # P1.2: bin_velocity_weekly — count of same-BIN events in trailing 7 days.
+    # Matches training semantics: sliding window [now - 7d, now).
+    now_ts = dt.timestamp()
+    ts_7d_ago = now_ts - 7 * 86400
+    ts_30d_ago = now_ts - 30 * 86400
+    bin_events = bin_recent_events.get(bin_str)
+    if bin_events is not None and len(bin_events) > 0:
+        # Count events in [now - 7d, now) using binary search.
+        bin_vel_weekly = int(np.searchsorted(bin_events, now_ts, side='left')
+                            - np.searchsorted(bin_events, ts_7d_ago, side='left'))
+    else:
+        bin_vel_weekly = 0
+
+    # P1.4: bin_approval_7d / bin_approval_30d — real windowed rates.
+    # Matches training: approval_rate = approved / total in the window.
+    # Fall back to all-time bin_rate only when window has < 5 samples.
+    def _windowed_bin_rate(ts_cutoff):
+        if bin_events is None or len(bin_events) == 0:
+            return bin_rate  # all-time fallback
+        total_in_window = int(np.searchsorted(bin_events, now_ts, side='left')
+                              - np.searchsorted(bin_events, ts_cutoff, side='left'))
+        if total_in_window < 5:
+            return bin_rate  # insufficient samples, fall back to all-time
+        bin_approved = bin_recent_approvals.get(bin_str)
+        if bin_approved is None or len(bin_approved) == 0:
+            approved_in_window = 0
+        else:
+            approved_in_window = int(np.searchsorted(bin_approved, now_ts, side='left')
+                                     - np.searchsorted(bin_approved, ts_cutoff, side='left'))
+        return approved_in_window / total_in_window
+
+    bin_rate_7d = _windowed_bin_rate(ts_7d_ago)
+    bin_rate_30d = _windowed_bin_rate(ts_30d_ago)
 
     rows = []
     for c in candidates:
@@ -419,16 +526,28 @@ def _assemble_features(payload: dict) -> pd.DataFrame:
         # systematically downranking new MIDs just because age=0. Falls back
         # to raw values when no prior exists.
         raw_age = c.get('mid_age_days')
+        gw_id = c.get('gateway_id')
         is_warming = 1 if c.get('is_warming_up') else 0
         use_prior = is_warming == 1 or raw_age is None or (isinstance(raw_age, (int, float)) and raw_age < 30)
+
+        # P1.3: mid_velocity_daily — count of same-day same-MID attempts.
+        # Training semantics: events on the same calendar day for this gateway.
+        start_of_day_ts = now_ts - (dt.hour * 3600 + dt.minute * 60 + dt.second)
+        mid_events = mid_recent_events.get(int(gw_id)) if gw_id is not None else None
+        if mid_events is not None and len(mid_events) > 0:
+            mid_vel_computed = int(np.searchsorted(mid_events, now_ts, side='left')
+                                   - np.searchsorted(mid_events, start_of_day_ts, side='left'))
+        else:
+            mid_vel_computed = 0
+
         if use_prior:
             prior_age = mid_age_by_pb.get((str(proc), str(acq_bank)))
             prior_vel = mid_vel_by_pb.get((str(proc), str(acq_bank)))
             mid_age_final = prior_age if prior_age is not None else (raw_age if raw_age is not None else 0)
-            mid_vel_final = prior_vel if prior_vel is not None else 0
+            mid_vel_final = prior_vel if prior_vel is not None else mid_vel_computed
         else:
             mid_age_final = raw_age
-            mid_vel_final = 0  # no per-request velocity; training saw real values here
+            mid_vel_final = mid_vel_computed
 
         rows.append({
             'gateway_id': c.get('gateway_id'),
@@ -444,8 +563,7 @@ def _assemble_features(payload: dict) -> pd.DataFrame:
             'hour_of_day': hour_of_day,
             'day_of_week': day_of_week,
             'mid_velocity_daily': mid_vel_final,  # prior-substituted when warming
-            'customer_history_on_proc': 0,    # unknown at BIN-entry time
-            'bin_velocity_weekly': 0,         # not computed per-request in MVP
+            'bin_velocity_weekly': bin_vel_weekly,
             'mid_age_days': mid_age_final,    # prior-substituted when warming
             'bin_approval_rate': bin_rate,
             'bin_proc_approval_rate': bin_proc_rate,
@@ -520,6 +638,9 @@ def health():
                 'bin_avg_amount': len(_state['bin_avg_amount']),
                 'te_acq_bank': len(_state['te_acq_bank']),
                 'top_issuers': len(_state['top_issuers']),
+                'bin_recent_events': len(_state['bin_recent_events']),
+                'bin_recent_approvals': len(_state['bin_recent_approvals']),
+                'mid_recent_events': len(_state['mid_recent_events']),
             },
         })
 

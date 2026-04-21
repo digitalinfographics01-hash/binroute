@@ -78,6 +78,12 @@ router.post('/', async (req, res) => {
   const pid = product_id != null ? parseInt(product_id, 10) || null : null;
   const emailHash = hashEmail(email);
 
+  // --- 0. Merchant vertical (for P3 logging) --------------------------------
+  const clientRow = queryOneSql(
+    'SELECT merchant_vertical FROM clients WHERE id = ?', [clientId]
+  );
+  const merchantVertical = (clientRow && clientRow.merchant_vertical) || null;
+
   // --- 1. BIN lookup ------------------------------------------------------
   const binRow = queryOneSql(
     'SELECT bin, issuer_bank, card_brand, card_type, is_prepaid FROM bin_lookup WHERE bin = ?',
@@ -115,6 +121,25 @@ router.post('/', async (req, res) => {
       aiRecommendedGatewayId: null,
       wouldHaveApproved: null,
       startedAt,
+      // P3 fields — all null/default for no-candidates path
+      merchantVertical,
+      issuerBank: binRow.issuer_bank,
+      cardType: binRow.card_type,
+      cardBrand: binRow.card_brand,
+      isPrepaid: binRow.is_prepaid ? 1 : 0,
+      hourOfDay: now.getUTCHours(),
+      dayOfWeek: now.getUTCDay(),
+      amountVsBinAvg: null,
+      lookupBestGatewayId: null,
+      aiDisagreedWithLookup: null,
+      confidenceTier: 'no_data',
+      aiScoreSpread: null,
+      lookupScoreSpread: null,
+      bestLookupRate: null,
+      chosenLookupRate: null,
+      regret: null,
+      wouldHaveApprovedBinary: null,
+      expectedApproval: null,
     }, 200);
   }
 
@@ -257,12 +282,12 @@ router.post('/', async (req, res) => {
 
     // Would lookup alone have picked something different? Compare the AI winner's
     // processor to the processor with the top lookup approval rate.
-    let lookupTopProcCanon = null; let lookupTopRate = -Infinity;
+    let lookupTopProcCanon = null; let lookupTopRate = -Infinity; let lookupBestGwId = null;
     for (const g of eligibleGateways) {
       const pc = canonProc(g.processor_name);
       const lk = lookupForProc(pc);
       const rate = lk && typeof lk.approval_rate === 'number' ? lk.approval_rate : null;
-      if (rate != null && rate > lookupTopRate) { lookupTopRate = rate; lookupTopProcCanon = pc; }
+      if (rate != null && rate > lookupTopRate) { lookupTopRate = rate; lookupTopProcCanon = pc; lookupBestGwId = g.gateway_id; }
     }
     const pickedProcCanon = canonProc(pickedGw.processor_name);
     if (lookupTopProcCanon && pickedProcCanon !== lookupTopProcCanon) {
@@ -341,6 +366,77 @@ router.post('/', async (req, res) => {
     ? pickedLookup.approval_rate
     : null;
 
+  // --- P3.2: Compute decision metadata for shadow logging -------------------
+
+  // lookup_best_gateway_id: gateway with the highest lookup rate among eligible.
+  let lookupBestGatewayId = null;
+  let bestLookupRate = null;
+  for (const g of eligibleGateways) {
+    const lk = lookupForProc(canonProc(g.processor_name));
+    const rate = lk && typeof lk.approval_rate === 'number' ? lk.approval_rate : null;
+    if (rate != null && (bestLookupRate == null || rate > bestLookupRate)) {
+      bestLookupRate = rate;
+      lookupBestGatewayId = g.gateway_id;
+    }
+  }
+
+  // chosen_lookup_rate: lookup rate of the recommended (final pick) gateway.
+  const chosenLookupRate = pickedLookup && typeof pickedLookup.approval_rate === 'number'
+    ? pickedLookup.approval_rate : null;
+
+  // regret: best_lookup_rate - chosen_lookup_rate (spec §5.2).
+  const regret = (bestLookupRate != null && chosenLookupRate != null)
+    ? bestLookupRate - chosenLookupRate : null;
+
+  // ai_disagreed_with_lookup: 1 if AI and lookup picked different gateways.
+  const aiDisagreedWithLookup = (lookupBestGatewayId != null && aiRecommendedGatewayId != null)
+    ? (lookupBestGatewayId !== aiRecommendedGatewayId ? 1 : 0)
+    : null;
+
+  // ai_score_spread: top-1 minus top-2 AI score.
+  const sortedAiScores = Array.from(scoreByGw.values())
+    .filter(s => Number.isFinite(s))
+    .sort((a, b) => b - a);
+  const aiScoreSpread = sortedAiScores.length >= 2
+    ? sortedAiScores[0] - sortedAiScores[1] : null;
+
+  // lookup_score_spread: top-1 minus top-2 lookup rate.
+  const lookupRates = eligibleGateways
+    .map(g => { const lk = lookupForProc(canonProc(g.processor_name)); return lk && typeof lk.approval_rate === 'number' ? lk.approval_rate : null; })
+    .filter(r => r != null)
+    .sort((a, b) => b - a);
+  const lookupScoreSpread = lookupRates.length >= 2
+    ? lookupRates[0] - lookupRates[1] : null;
+
+  // confidence_tier: qualitative label for the decision.
+  let confidenceTier;
+  if (lookupHasData === 0 && aiScore == null) {
+    confidenceTier = 'no_data';
+  } else if (aiScore != null && aiScore >= 0.70 && aiScoreSpread != null && aiScoreSpread >= 0.05) {
+    confidenceTier = 'high';
+  } else if (aiScore != null && aiScore >= 0.50) {
+    confidenceTier = 'medium';
+  } else {
+    confidenceTier = 'low';
+  }
+
+  // would_have_approved_binary: Stage-0 proxy (1 if chosen_lookup_rate > 0.50).
+  const wouldHaveApprovedBinary = chosenLookupRate != null
+    ? (chosenLookupRate > 0.50 ? 1 : 0) : null;
+
+  // expected_approval: COALESCE(ai_score, chosen_lookup_rate) — EAR input.
+  const expectedApproval = aiScore != null ? aiScore : chosenLookupRate;
+
+  // Transaction-level context from binRow + request time.
+  const hourOfDay = now.getUTCHours();
+  const dayOfWeek = now.getUTCDay();
+  const binAvgAmt = queryOneSql(
+    'SELECT AVG(order_total) AS avg FROM orders WHERE cc_first_6 = ? AND order_total > 0',
+    [bin]
+  );
+  const amountVsBinAvg = (amt != null && binAvgAmt && binAvgAmt.avg > 0)
+    ? amt / binAvgAmt.avg : null;
+
   // Build candidate_pool_json — one row per ELIGIBLE gateway_id (no duplicates).
   const pool = eligibleGateways.map(g => {
     const pc = canonProc(g.processor_name);
@@ -366,7 +462,15 @@ router.post('/', async (req, res) => {
     const bKey = b.ai_score != null ? b.ai_score : (b.lookup_rate != null ? b.lookup_rate : -Infinity);
     return bKey - aKey;
   });
-  pool.forEach((entry, i) => { entry.rank = i; });
+  // P3.3: Enrich pool with spread_vs_best, spread_vs_avg, rank_position.
+  const aiScoresInPool = pool.map(e => e.ai_score).filter(s => s != null);
+  const maxAiScore = aiScoresInPool.length > 0 ? Math.max(...aiScoresInPool) : null;
+  const avgAiScore = aiScoresInPool.length > 0 ? aiScoresInPool.reduce((a, b) => a + b, 0) / aiScoresInPool.length : null;
+  pool.forEach((entry, i) => {
+    entry.rank_position = i;
+    entry.spread_vs_best = entry.ai_score != null && maxAiScore != null ? entry.ai_score - maxAiScore : null;
+    entry.spread_vs_avg = entry.ai_score != null && avgAiScore != null ? entry.ai_score - avgAiScore : null;
+  });
 
   // Add hard-excluded gateways to the pool for full transparency (one row per gateway_id).
   for (const g of gateways) {
@@ -382,7 +486,9 @@ router.post('/', async (req, res) => {
       lookup_action: 'hard_exclude',
       ai_score: null,
       is_pick: 0,
-      rank: null,
+      rank_position: null,
+      spread_vs_best: null,
+      spread_vs_avg: null,
     });
   }
 
@@ -414,6 +520,25 @@ router.post('/', async (req, res) => {
     aiRecommendedGatewayId,
     wouldHaveApproved,
     startedAt,
+    // P3 fields
+    merchantVertical,
+    issuerBank: binRow.issuer_bank,
+    cardType: binRow.card_type,
+    cardBrand: binRow.card_brand,
+    isPrepaid: binRow.is_prepaid ? 1 : 0,
+    hourOfDay,
+    dayOfWeek,
+    amountVsBinAvg,
+    lookupBestGatewayId,
+    aiDisagreedWithLookup,
+    confidenceTier,
+    aiScoreSpread,
+    lookupScoreSpread,
+    bestLookupRate,
+    chosenLookupRate,
+    regret,
+    wouldHaveApprovedBinary,
+    expectedApproval,
   }, 200);
 });
 
@@ -436,8 +561,13 @@ function writeAndRespond(res, d, httpStatus) {
          daemon_timed_out, daemon_latency_ms, feature_snapshot_json, model_version,
          request_received_at, response_sent_at, latency_ms_server,
          ai_model_version, ai_score, ai_recommended_gateway_id, ai_scored_at,
-         would_have_approved
-       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         would_have_approved,
+         merchant_vertical, issuer_bank, card_type, card_brand, is_prepaid,
+         hour_of_day, day_of_week, amount_vs_bin_avg,
+         lookup_best_gateway_id, ai_disagreed_with_lookup, confidence_tier,
+         ai_score_spread, lookup_score_spread, best_lookup_rate, chosen_lookup_rate,
+         regret, would_have_approved_binary, expected_approval
+       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         shadowId, d.clientId, d.bin, d.amount, d.product_id, d.emailHash, d.salesType,
         d.recommendedGatewayId, d.recommendedProcessor, d.confidence, d.reason,
@@ -447,6 +577,11 @@ function writeAndRespond(res, d, httpStatus) {
         d.aiScore != null ? d.modelVersion : null, d.aiScore, d.aiRecommendedGatewayId,
         d.aiScore != null ? now.toISOString() : null,
         d.wouldHaveApproved,
+        d.merchantVertical, d.issuerBank, d.cardType, d.cardBrand, d.isPrepaid,
+        d.hourOfDay, d.dayOfWeek, d.amountVsBinAvg,
+        d.lookupBestGatewayId, d.aiDisagreedWithLookup, d.confidenceTier,
+        d.aiScoreSpread, d.lookupScoreSpread, d.bestLookupRate, d.chosenLookupRate,
+        d.regret, d.wouldHaveApprovedBinary, d.expectedApproval,
       ]
     );
   } catch (err) {
