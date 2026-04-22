@@ -87,13 +87,14 @@ MODEL_CONFIGS = {
         'numerical': [
             # customer_history_on_proc REMOVED in P1.1 — unknown at BIN-entry
             # time, zeroing it at inference creates train/serve skew.
-            # is_weekend kept for training experiment but daemon strips it.
+            # is_weekend REMOVED in P1.6 — daemon doesn't include it in
+            # INITIAL_NUMERICAL; day_of_week already captures the signal.
             'is_prepaid', 'hour_of_day', 'day_of_week',
             'mid_velocity_daily',
             'bin_velocity_weekly', 'mid_age_days',
             'bin_approval_rate', 'bin_proc_approval_rate',
             'te_acquiring_bank', 'bin_approval_7d', 'bin_approval_30d',
-            'amount_vs_bin_avg', 'is_near_payday', 'is_weekend',
+            'amount_vs_bin_avg', 'is_near_payday',
         ],
         'force_algo': 'LightGBM',
         'filename': 'five_model_initial',

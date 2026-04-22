@@ -54,11 +54,21 @@ function runPostSyncPipeline(clientId) {
   const reconciled = reconcileShadowDecisions(clientId);
   console.log(`[PostSync] Step 6: Reconciled ${reconciled.matched} shadow rows (${reconciled.scanned} orders scanned)`);
 
+  // Step 7: Run Layer 1 shadow alerts (deterministic monitoring)
+  let shadowAlerts = [];
+  try {
+    const { runShadowAlertCheck } = require('../analytics/shadow-alert-runner');
+    shadowAlerts = runShadowAlertCheck(clientId);
+    console.log(`[PostSync] Step 7: Shadow alerts — ${shadowAlerts.length} triggered`);
+  } catch (err) {
+    console.error(`[PostSync] Step 7: Shadow alerts failed — ${err.message}`);
+  }
+
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
   console.log(`[PostSync] Pipeline complete in ${elapsed}s`);
 
   saveDb();
-  return { classified, rolesSet, cyclesSet, featuresExtracted, reconciled };
+  return { classified, rolesSet, cyclesSet, featuresExtracted, reconciled, shadowAlerts };
 }
 
 // ---------------------------------------------------------------------------

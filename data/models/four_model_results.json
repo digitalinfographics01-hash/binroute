@@ -1,5 +1,5 @@
 {
-  "trained_at": "2026-04-14T11:49:24.115256",
+  "trained_at": "2026-04-22T04:55:54.606777",
   "source": "transaction_attempts (feature_version >= 3)",
   "total_attempts": 295110,
   "train_ratio": 0.8,
@@ -9,7 +9,7 @@
       "rows": 31115,
       "approval_rate": 0.37506026032460227,
       "winner": "LightGBM",
-      "winner_auc": 0.6598008005659418,
+      "winner_auc": 0.6558054139516034,
       "features": [
         "processor_name",
         "acquiring_bank",
@@ -23,7 +23,6 @@
         "hour_of_day",
         "day_of_week",
         "mid_velocity_daily",
-        "customer_history_on_proc",
         "bin_velocity_weekly",
         "mid_age_days",
         "bin_approval_rate",
@@ -37,89 +36,89 @@
       "top_features": [
         {
           "feature": "mid_age_days",
-          "importance_pct": 0.1067,
-          "importance_raw": 957.0
+          "importance_pct": 0.111,
+          "importance_raw": 996.0
         },
         {
           "feature": "te_acquiring_bank",
-          "importance_pct": 0.0968,
-          "importance_raw": 868.0
+          "importance_pct": 0.0962,
+          "importance_raw": 863.0
         },
         {
           "feature": "amount_vs_bin_avg",
-          "importance_pct": 0.0918,
-          "importance_raw": 823.0
+          "importance_pct": 0.0945,
+          "importance_raw": 848.0
         },
         {
           "feature": "mid_velocity_daily",
-          "importance_pct": 0.0904,
-          "importance_raw": 811.0
+          "importance_pct": 0.0851,
+          "importance_raw": 763.0
         },
         {
           "feature": "bin_velocity_weekly",
-          "importance_pct": 0.0833,
-          "importance_raw": 747.0
-        },
-        {
-          "feature": "billing_state",
-          "importance_pct": 0.0692,
-          "importance_raw": 621.0
-        },
-        {
-          "feature": "issuer_bank_grouped",
-          "importance_pct": 0.0689,
-          "importance_raw": 618.0
-        },
-        {
-          "feature": "bin_proc_approval_rate",
-          "importance_pct": 0.0652,
-          "importance_raw": 585.0
+          "importance_pct": 0.078,
+          "importance_raw": 700.0
         },
         {
           "feature": "bin_approval_rate",
-          "importance_pct": 0.0625,
-          "importance_raw": 561.0
+          "importance_pct": 0.0688,
+          "importance_raw": 617.0
+        },
+        {
+          "feature": "issuer_bank_grouped",
+          "importance_pct": 0.0685,
+          "importance_raw": 614.0
+        },
+        {
+          "feature": "billing_state",
+          "importance_pct": 0.0681,
+          "importance_raw": 611.0
+        },
+        {
+          "feature": "bin_proc_approval_rate",
+          "importance_pct": 0.0641,
+          "importance_raw": 575.0
         },
         {
           "feature": "hour_of_day",
-          "importance_pct": 0.0601,
-          "importance_raw": 539.0
+          "importance_pct": 0.0622,
+          "importance_raw": 558.0
         },
         {
           "feature": "bin_approval_7d",
-          "importance_pct": 0.0414,
-          "importance_raw": 371.0
+          "importance_pct": 0.0457,
+          "importance_raw": 410.0
         },
         {
           "feature": "mcc_code",
-          "importance_pct": 0.0401,
-          "importance_raw": 360.0
+          "importance_pct": 0.042,
+          "importance_raw": 377.0
         },
         {
           "feature": "day_of_week",
-          "importance_pct": 0.0281,
-          "importance_raw": 252.0
+          "importance_pct": 0.024,
+          "importance_raw": 215.0
         },
         {
           "feature": "processor_name",
-          "importance_pct": 0.0169,
-          "importance_raw": 152.0
+          "importance_pct": 0.0174,
+          "importance_raw": 156.0
         },
         {
           "feature": "card_brand",
-          "importance_pct": 0.0158,
-          "importance_raw": 142.0
+          "importance_pct": 0.0168,
+          "importance_raw": 151.0
         }
       ],
       "algorithms": {
         "LightGBM": {
-          "auc": 0.6598008005659418,
-          "f1": 0.5114372032801036,
-          "precision": 0.5048998721772475,
-          "recall": 0.5181460428508964,
-          "accuracy": 0.636188333601157,
-          "log_loss": 0.6507514324988041,
-          "train_time": 3.0595414638519287
+          "auc": 0.6558054139516034,
+          "f1": 0.4915445321307779,
+          "precision": 0.5074487895716946,
+          "recall": 0.4766069086139047,
+          "accuracy": 0.6376345813916118,
+          "log_loss": 0.6519562497133666,
+          "train_time": 3.2579574584960938
         }
       }
     },
@@ -240,7 +239,7 @@
           "recall": 0.5714615562225814,
           "accuracy": 0.618397340915462,
           "log_loss": 0.7067681656625208,
-          "train_time": 0.1728529930114746
+          "train_time": 0.16339826583862305
         },
         "Random Forest": {
           "auc": 0.7528092944501422,
@@ -248,8 +247,8 @@
           "precision": 0.3296033680478617,
           "recall": 0.6869083352574463,
           "accuracy": 0.7033759160626326,
-          "log_loss": 0.5681091676935031,
-          "train_time": 6.620564699172974
+          "log_loss": 0.5681091676935032,
+          "train_time": 6.717094421386719
         },
         "XGBoost": {
           "auc": 0.7699756823441603,
@@ -258,7 +257,7 @@
           "recall": 0.5707688755483722,
           "accuracy": 0.7729766529173842,
           "log_loss": 0.474281126276068,
-          "train_time": 2.812762975692749
+          "train_time": 3.643425941467285
         },
         "LightGBM": {
           "auc": 0.7748534206254172,
@@ -267,7 +266,7 @@
           "recall": 0.6972985453705841,
           "accuracy": 0.7201153337871932,
           "log_loss": 0.5556998289870315,
-          "train_time": 1.579998254776001
+          "train_time": 1.6854820251464844
         },
         "CatBoost": {
           "auc": 0.7741183311586382,
@@ -276,7 +275,7 @@
           "recall": 0.6633571923343339,
           "accuracy": 0.7306475511593449,
           "log_loss": 0.5321669584118867,
-          "train_time": 7.2347166538238525
+          "train_time": 7.736127853393555
         }
       }
     },
@@ -398,7 +397,7 @@
           "recall": 0.8875,
           "accuracy": 0.80301685891748,
           "log_loss": 0.4802197393658727,
-          "train_time": 0.043984413146972656
+          "train_time": 0.0471651554107666
         },
         "Random Forest": {
           "auc": 0.772045788166215,
@@ -407,7 +406,7 @@
           "recall": 0.2125,
           "accuracy": 0.9860248447204969,
           "log_loss": 0.12586133346139528,
-          "train_time": 0.7371654510498047
+          "train_time": 0.7437870502471924
         },
         "XGBoost": {
           "auc": 0.8718241869918699,
@@ -416,7 +415,7 @@
           "recall": 0.2875,
           "accuracy": 0.9873558118899733,
           "log_loss": 0.08119587663995119,
-          "train_time": 0.6983208656311035
+          "train_time": 0.7263400554656982
         },
         "LightGBM": {
           "auc": 0.9082429990966576,
@@ -424,8 +423,8 @@
           "precision": 0.8461538461538461,
           "recall": 0.275,
           "accuracy": 0.9862466725820763,
-          "log_loss": 0.17013289278015614,
-          "train_time": 0.629340648651123
+          "log_loss": 0.1701328927814872,
+          "train_time": 0.60154128074646
         },
         "CatBoost": {
           "auc": 0.8572733175248419,
@@ -434,7 +433,7 @@
           "recall": 0.2875,
           "accuracy": 0.9871339840283939,
           "log_loss": 0.0663335057055233,
-          "train_time": 3.4501428604125977
+          "train_time": 3.5456185340881348
         }
       }
     },
@@ -561,7 +560,7 @@
           "recall": 0.8842159916926272,
           "accuracy": 0.7346221441124781,
           "log_loss": 0.6957011452103733,
-          "train_time": 0.10847830772399902
+          "train_time": 0.11403799057006836
         },
         "Random Forest": {
           "auc": 0.902009924107523,
@@ -570,7 +569,7 @@
           "recall": 0.9065420560747663,
           "accuracy": 0.7429701230228472,
           "log_loss": 0.5068104415034206,
-          "train_time": 1.3424785137176514
+          "train_time": 1.2203466892242432
         },
         "XGBoost": {
           "auc": 0.8953507437361061,
@@ -579,7 +578,7 @@
           "recall": 0.6505711318795431,
           "accuracy": 0.8447568834212068,
           "log_loss": 0.39078373263347693,
-          "train_time": 1.2658202648162842
+          "train_time": 1.25905179977417
         },
         "LightGBM": {
           "auc": 0.8889796607483837,
@@ -588,7 +587,7 @@
           "recall": 0.6905503634475597,
           "accuracy": 0.8320152314001171,
           "log_loss": 0.3742608062650124,
-          "train_time": 0.6854679584503174
+          "train_time": 0.8480141162872314
         },
         "CatBoost": {
           "auc": 0.9063278895637994,
@@ -597,7 +596,7 @@
           "recall": 0.745067497403946,
           "accuracy": 0.8453427065026362,
           "log_loss": 0.3501558508447925,
-          "train_time": 4.834478855133057
+          "train_time": 4.885887861251831
         }
       }
     },
@@ -726,7 +725,7 @@
           "recall": 0.8299776286353467,
           "accuracy": 0.29382162129388223,
           "log_loss": 0.9979484634217809,
-          "train_time": 0.280747652053833
+          "train_time": 0.2874715328216553
         },
         "Random Forest": {
           "auc": 0.6476756741562479,
@@ -735,7 +734,7 @@
           "recall": 0.18344519015659955,
           "accuracy": 0.8857697204874795,
           "log_loss": 0.4714427686465953,
-          "train_time": 4.117993354797363
+          "train_time": 4.301263093948364
         },
         "XGBoost": {
           "auc": 0.6090890140522689,
@@ -744,7 +743,7 @@
           "recall": 0.020134228187919462,
           "accuracy": 0.9410052749651368,
           "log_loss": 0.23910804316642353,
-          "train_time": 2.1748270988464355
+          "train_time": 2.1085827350616455
         },
         "LightGBM": {
           "auc": 0.6567569509489295,
@@ -753,7 +752,7 @@
           "recall": 0.27181208053691275,
           "accuracy": 0.8605468986842904,
           "log_loss": 0.35323044143521315,
-          "train_time": 1.2455835342407227
+          "train_time": 1.3600306510925293
         },
         "CatBoost": {
           "auc": 0.5988864082809187,
@@ -762,7 +761,7 @@
           "recall": 0.12304250559284116,
           "accuracy": 0.9133571818347178,
           "log_loss": 0.28386128587652154,
-          "train_time": 6.647543907165527
+          "train_time": 6.8495094776153564
         }
       }
     }
