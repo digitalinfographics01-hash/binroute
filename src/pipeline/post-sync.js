@@ -13,13 +13,14 @@
  * Must complete BEFORE analytics recompute.
  */
 const { querySql, queryOneSql, runSql, saveDb } = require('../db/connection');
+const StickyClient = require('../api/sticky-client');
 
 /**
  * Run the full post-sync pipeline for a client.
  * @param {number} clientId
  * @returns {{ classified: number, rolesSet: number, cyclesSet: number }}
  */
-function runPostSyncPipeline(clientId) {
+async function runPostSyncPipeline(clientId) {
   console.log(`[PostSync] Starting pipeline for client ${clientId}...`);
   const start = Date.now();
 
@@ -50,9 +51,20 @@ function runPostSyncPipeline(clientId) {
   const featuresExtracted = extractFeatures(clientId);
   console.log(`[PostSync] Step 5: Extracted ${featuresExtracted} tx features`);
 
-  // Step 6: Reconcile shadow decisions against imported orders
+  // Step 6a: Fetch employeeNotes for orders with pending shadow decisions.
+  //   order_find (bulk import) does NOT return employeeNotes — only order_view does.
+  //   We do targeted order_view calls for orders matching unreconciled shadow decisions.
+  let notesFetched = 0;
+  try {
+    notesFetched = await _fetchEmployeeNotesForShadow(clientId);
+    console.log(`[PostSync] Step 6a: Fetched employeeNotes for ${notesFetched} shadow orders`);
+  } catch (err) {
+    console.error(`[PostSync] Step 6a: employeeNotes fetch failed — ${err.message}`);
+  }
+
+  // Step 6b: Reconcile shadow decisions against imported orders
   const reconciled = reconcileShadowDecisions(clientId);
-  console.log(`[PostSync] Step 6: Reconciled ${reconciled.matched} shadow rows (${reconciled.scanned} orders scanned)`);
+  console.log(`[PostSync] Step 6b: Reconciled ${reconciled.matched} shadow rows (${reconciled.scanned} orders scanned)`);
 
   // Step 7: Run Layer 1 shadow alerts (deterministic monitoring)
   let shadowAlerts = [];
@@ -380,7 +392,89 @@ function _computeCycleAndAttempt(clientId) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 6: Reconcile shadow decisions against imported orders
+// Step 6a: Fetch employeeNotes for orders with pending shadow decisions
+// ---------------------------------------------------------------------------
+//
+// order_find (bulk import) does NOT return employeeNotes — only the single
+// order_view endpoint does. Beast Insights and BinRoute both write markers
+// to employeeNotes via the checkout framework's customNotes field.
+//
+// This step does targeted order_view calls for orders that were created in
+// the same time window as unreconciled shadow decisions. Typically ~20-30
+// calls/day for Stage 0 Kytsan traffic.
+//
+// Idempotent: skips orders that already have employee_notes populated.
+
+async function _fetchEmployeeNotesForShadow(clientId) {
+  // Any unreconciled shadow decisions?
+  const pending = querySql(
+    `SELECT shadow_id, request_received_at
+       FROM shadow_decisions
+      WHERE client_id = ? AND reconciled_at IS NULL
+      ORDER BY request_received_at ASC`,
+    [clientId]
+  );
+  if (pending.length === 0) return 0;
+
+  // Find the date range of pending shadow decisions
+  const earliest = pending[0].request_received_at;
+  const latest = pending[pending.length - 1].request_received_at;
+
+  // Find orders in that window that don't have employee_notes yet
+  const orders = querySql(
+    `SELECT order_id
+       FROM orders
+      WHERE client_id = ?
+        AND date_created >= date(?, '-1 day')
+        AND date_created <= date(?, '+1 day')
+        AND (employee_notes IS NULL OR employee_notes = '' OR employee_notes = 'null')
+      ORDER BY order_id DESC`,
+    [clientId, earliest, latest]
+  );
+
+  if (orders.length === 0) return 0;
+
+  // Build Sticky client for this client
+  const clientRow = queryOneSql('SELECT * FROM clients WHERE id = ?', [clientId]);
+  if (!clientRow) return 0;
+
+  const sticky = new StickyClient({
+    baseUrl: clientRow.sticky_base_url,
+    username: clientRow.sticky_username,
+    password: clientRow.sticky_password,
+  });
+
+  let fetched = 0;
+  for (const o of orders) {
+    try {
+      const result = await sticky.orderView(o.order_id);
+      const data = result.data || result;
+      const employeeNotes = data.employeeNotes;
+
+      if (employeeNotes && Array.isArray(employeeNotes) && employeeNotes.length > 0) {
+        const notesStr = JSON.stringify(employeeNotes);
+        // Only update if it contains our marker — avoid unnecessary writes
+        if (notesStr.includes('BinRoute_shadow')) {
+          runSql(
+            `UPDATE orders SET employee_notes = ? WHERE client_id = ? AND order_id = ?`,
+            [notesStr, clientId, o.order_id]
+          );
+          fetched++;
+        }
+      }
+    } catch (err) {
+      // Non-fatal — order may not exist yet or API hiccup. Reconciler will
+      // retry next sync cycle.
+      console.warn(`[PostSync] 6a: order_view ${o.order_id} failed: ${err.message}`);
+    }
+  }
+
+  if (fetched > 0) saveDb();
+  return fetched;
+}
+
+// ---------------------------------------------------------------------------
+// Step 6b: Reconcile shadow decisions against imported orders
 // ---------------------------------------------------------------------------
 //
 // Flow:

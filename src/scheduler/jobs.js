@@ -52,7 +52,7 @@ function startScheduler() {
 
         // Post-sync pipeline: classify → derive → recompute
         try {
-          runPostSyncPipeline(id);
+          await runPostSyncPipeline(id);
         } catch (err) {
           console.error(`[Scheduler] Post-sync pipeline failed for client ${id}:`, err.message);
         }

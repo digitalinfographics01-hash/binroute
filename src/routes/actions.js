@@ -82,7 +82,7 @@ router.post('/sync/:clientId', async (req, res) => {
 
     // Post-sync pipeline: classify → derive → recompute (in correct order)
     try {
-      runPostSyncPipeline(clientId);
+      await runPostSyncPipeline(clientId);
     } catch (err) {
       console.error('[Sync] Post-sync pipeline failed:', err.message);
     }
@@ -132,7 +132,7 @@ router.post('/sync-full/:clientId', async (req, res) => {
 
     // Post-sync pipeline: classify → derive → recompute (in correct order)
     try {
-      runPostSyncPipeline(clientId);
+      await runPostSyncPipeline(clientId);
     } catch (err) {
       console.error('[Sync] Post-sync pipeline failed:', err.message);
     }
