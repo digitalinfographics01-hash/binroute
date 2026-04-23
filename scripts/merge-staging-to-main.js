@@ -99,10 +99,8 @@ if (newCount === 0) {
   process.exit(0);
 }
 
-console.log(`\nInserting ${newCount} orders...`);
+console.log(`\nInserting ${newCount} orders in batches (server-safe)...`);
 
-// Get column list from staging (excluding any autoincrement id)
-const cols = staging ? null : null; // staging is closed, use hardcoded list
 const columnList = `client_id, order_id, customer_id, contact_id, is_anonymous_decline,
   campaign_id, gateway_id, gateway_descriptor,
   cc_first_6, cc_type, order_status, order_total,
@@ -135,30 +133,53 @@ const columnList = `client_id, order_id, customer_id, contact_id, is_anonymous_d
   consent_required, consent_received, order_customer_types, website_received, website_sent, ip_address_lookup,
   employee_notes, system_notes, custom_fields`;
 
-const result = main.exec(`
-  INSERT OR IGNORE INTO main.orders (${columnList})
-  SELECT ${columnList} FROM staging.orders
-`);
+// Batched insert: 5000 rows per transaction to keep WAL small and avoid locking the server
+const BATCH_SIZE = 5000;
+const totalBatches = Math.ceil(newCount / BATCH_SIZE);
+let totalInserted = 0;
+
+for (let batch = 0; batch < totalBatches; batch++) {
+  const offset = batch * BATCH_SIZE;
+  const batchStart = Date.now();
+
+  main.exec(`
+    INSERT OR IGNORE INTO main.orders (${columnList})
+    SELECT ${columnList} FROM staging.orders
+    LIMIT ${BATCH_SIZE} OFFSET ${offset}
+  `);
+
+  // Count after each batch
+  const currentCount = main.prepare('SELECT COUNT(*) as n FROM orders WHERE client_id = ?').get(CLIENT_ID).n;
+  const batchInserted = currentCount - beforeCount - totalInserted;
+  totalInserted = currentCount - beforeCount;
+
+  // WAL checkpoint every 10 batches to keep WAL file small
+  if ((batch + 1) % 10 === 0) {
+    main.pragma('wal_checkpoint(PASSIVE)');
+  }
+
+  const elapsed = Date.now() - batchStart;
+  console.log(`  Batch ${batch + 1}/${totalBatches}: +${batchInserted} rows (${totalInserted} total, ${elapsed}ms)`);
+}
+
+// Final WAL checkpoint
+console.log('\nFinal WAL checkpoint...');
+main.pragma('wal_checkpoint(PASSIVE)');
 
 // ─── Step 3: Verify ─────────────────────────────────────────────
 
 const afterCount = main.prepare('SELECT COUNT(*) as n FROM orders WHERE client_id = ?').get(CLIENT_ID).n;
-const inserted = afterCount - beforeCount;
 
 console.log(`\nMain DB after: ${afterCount} orders (client ${CLIENT_ID})`);
-console.log(`Inserted: ${inserted} new orders (expected ${newCount})`);
+console.log(`Inserted: ${totalInserted} new orders (expected ${newCount})`);
 
-if (inserted !== newCount) {
+if (totalInserted !== newCount) {
   console.log('WARNING: Inserted count does not match expected. Some may have conflicted on other constraints.');
 }
-
-// WAL checkpoint
-console.log('\nCheckpointing WAL...');
-main.pragma('wal_checkpoint(PASSIVE)');
 
 main.exec('DETACH DATABASE staging');
 main.close();
 
-console.log(`\n=== MERGE COMPLETE === ${inserted} orders added to main DB`);
+console.log(`\n=== MERGE COMPLETE === ${totalInserted} orders added to main DB`);
 console.log('Staging DB preserved at:', STAGING_DB_PATH);
 console.log('You can delete it after verifying: rm', STAGING_DB_PATH);

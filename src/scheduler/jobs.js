@@ -15,12 +15,10 @@ const { runPostSyncPipeline } = require('../pipeline/post-sync');
 function startScheduler() {
   console.log('[Scheduler] Starting scheduled jobs...');
 
-  // Daily sync — PAUSED until new approach is tested
-  // To re-enable: change false to '0 6 * * *'
-  // cron.schedule('0 6 * * *', async () => {
-  if (false) { (async () => {
-    console.log('[Scheduler] Running daily sync...');
-    const clients = querySql('SELECT id FROM clients');
+  // Daily sync — Kytsan (client 1) only for Stage 0 shadow routing
+  cron.schedule('0 6 * * *', async () => {
+    console.log('[Scheduler] Running daily sync (Kytsan only)...');
+    const clients = querySql('SELECT id FROM clients'); // All clients — daily sync re-enabled 2026-04-23
 
     for (const { id } of clients) {
       try {
@@ -71,7 +69,7 @@ function startScheduler() {
         console.error(`[Scheduler] Daily pull failed for client ${id}:`, err.message);
       }
     }
-  })(); }
+  });
 
   // Hourly MID status check
   cron.schedule('0 * * * *', async () => {
@@ -117,7 +115,7 @@ function startScheduler() {
   });
 
   console.log('[Scheduler] Jobs scheduled:');
-  console.log('  - Daily sync: PAUSED (testing new approach)');
+  console.log('  - Daily sync: all clients at 6:00 AM UTC');
   console.log('  - Hourly MID check: every hour');
   console.log('  - Implementation check: every 6 hours');
   console.log('  - Weekly AI retrain: Sunday 7:00 AM');
