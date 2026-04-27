@@ -3,7 +3,7 @@
  *
  * Two processes:
  *   binroute        — data platform (imports, analytics, UI) on port 3001
- *   binroute-router — AI routing engine (shadow decisions) on port 3002
+ *   binroute-router — AI routing engine (shadow decisions) on port 3005
  *
  * Usage:
  *   pm2 start ecosystem.config.js
@@ -28,7 +28,7 @@ module.exports = {
       script: 'router.js',
       cwd: '/opt/binroute',
       env: {
-        ROUTER_PORT: 3002,
+        ROUTER_PORT: 3005,
         NODE_ENV: 'production',
       },
       max_memory_restart: '256M',

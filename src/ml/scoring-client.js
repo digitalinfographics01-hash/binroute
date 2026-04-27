@@ -13,9 +13,11 @@
 const axios = require('axios');
 
 const DAEMON_URL = process.env.SCORING_DAEMON_URL || 'http://127.0.0.1:5001';
-// 60ms default timeout — measured warm p95 on Windows dev ~25ms, tail ~40ms.
-// Linux prod should be tighter; tune via env var once we have real Kytsan data.
-const TIMEOUT_MS = parseInt(process.env.SCORING_DAEMON_TIMEOUT_MS || '60', 10);
+// 3000ms default timeout — cold-start on low-traffic clients can take 1-10s
+// when the OS swaps the daemon out of memory. Warm p95 is ~25ms so this only
+// affects the first request after a long idle gap. Keepalive ping below
+// prevents most cold starts.
+const TIMEOUT_MS = parseInt(process.env.SCORING_DAEMON_TIMEOUT_MS || '3000', 10);
 
 const client = axios.create({
   baseURL: DAEMON_URL,

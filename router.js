@@ -36,10 +36,26 @@ app.use(
   require('./src/routes/route')
 );
 
+// Keepalive — ping scoring daemon every 5 min to prevent OS from swapping it out
+const { health: daemonHealth } = require('./src/ml/scoring-client');
+let keepaliveTimer;
+function startKeepalive() {
+  keepaliveTimer = setInterval(async () => {
+    try { await daemonHealth(); }
+    catch (e) { /* non-fatal */ }
+  }, 5 * 60 * 1000);
+}
+
 // Start
 async function start() {
   await initializeDatabase();
   console.log('[Router] Database ready.');
+
+  // Warm up the daemon immediately
+  try { await daemonHealth(); console.log('[Router] Scoring daemon is warm.'); }
+  catch (e) { console.warn('[Router] Scoring daemon not reachable — will retry via keepalive.'); }
+
+  startKeepalive();
 
   app.listen(PORT, () => {
     console.log(`[Router] BinRoute AI Router running on http://localhost:${PORT}`);
