@@ -427,7 +427,8 @@ async function _fetchEmployeeNotesForShadow(clientId) {
       WHERE client_id = ?
         AND date_created >= date(?, '-1 day')
         AND date_created <= date(?, '+1 day')
-        AND (employee_notes IS NULL OR employee_notes = '' OR employee_notes = 'null')
+        AND (employee_notes IS NULL OR employee_notes = '' OR employee_notes = 'null'
+             OR (employee_notes NOT LIKE '%BinRoute_shadow%' AND employee_notes NOT LIKE '%BinRouting:%'))
       ORDER BY order_id DESC`,
     [clientId, earliest, latest]
   );
@@ -454,7 +455,7 @@ async function _fetchEmployeeNotesForShadow(clientId) {
       if (employeeNotes && Array.isArray(employeeNotes) && employeeNotes.length > 0) {
         const notesStr = JSON.stringify(employeeNotes);
         // Only update if it contains our marker — avoid unnecessary writes
-        if (notesStr.includes('BinRoute_shadow')) {
+        if (notesStr.includes('BinRoute_shadow') || notesStr.includes('BinRouting:')) {
           runSql(
             `UPDATE orders SET employee_notes = ? WHERE client_id = ? AND order_id = ?`,
             [notesStr, clientId, o.order_id]
@@ -490,7 +491,7 @@ async function _fetchEmployeeNotesForShadow(clientId) {
 //
 // Idempotent: rows where reconciled_at IS NOT NULL are skipped.
 // Returns: { scanned, matched, skipped_reconciled, skipped_orphan }.
-const SHADOW_MARKER_RE = /BinRoute_shadow:\s*id=([a-fA-F0-9-]{8,})/;
+const SHADOW_MARKER_RE = /BinRout(?:e_shadow|ing):\s*id=([a-fA-F0-9-]{8,})/;
 
 function reconcileShadowDecisions(clientId) {
   // Fast path: any rows to scan?
@@ -520,9 +521,9 @@ function reconcileShadowDecisions(clientId) {
         AND g.gateway_id = o.gateway_id
       WHERE o.client_id = ?
         AND (
-          (o.employee_notes IS NOT NULL AND o.employee_notes LIKE '%BinRoute_shadow%') OR
-          (o.system_notes   IS NOT NULL AND o.system_notes   LIKE '%BinRoute_shadow%') OR
-          (o.custom_fields  IS NOT NULL AND o.custom_fields  LIKE '%BinRoute_shadow%')
+          (o.employee_notes IS NOT NULL AND (o.employee_notes LIKE '%BinRoute_shadow%' OR o.employee_notes LIKE '%BinRouting:%')) OR
+          (o.system_notes   IS NOT NULL AND (o.system_notes   LIKE '%BinRoute_shadow%' OR o.system_notes   LIKE '%BinRouting:%')) OR
+          (o.custom_fields  IS NOT NULL AND (o.custom_fields  LIKE '%BinRoute_shadow%' OR o.custom_fields  LIKE '%BinRouting:%'))
         )`,
     [clientId]
   );
