@@ -73,14 +73,8 @@ app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// Shadow routing endpoint — API-key auth (not session). Mounted BEFORE the
-// session auth middleware so the checkout can POST without a cookie.
-// See: plans/steady-sparking-island.md (Stage 0 shadow mode).
-app.use(
-  '/api/route',
-  require('./src/middleware/api-key-auth'),
-  require('./src/routes/route')
-);
+// Shadow routing endpoint — NOW served by router.js (binroute-router, port 3002).
+// Removed from this process so restarting the data platform doesn't kill live routing.
 
 // Auth middleware — protect everything except login
 app.use((req, res, next) => {
@@ -152,6 +146,7 @@ app.use('/api/products', requireClientAccess, require('./src/routes/products'));
 app.use('/api/analytics', requireClientAccess, require('./src/routes/analytics'));
 app.use('/api/bins', requireClientAccess, require('./src/routes/bins'));
 app.use('/api/implementations', requireClientAccess, require('./src/routes/playbook-implementations'));
+app.use('/api/pnl', requireClientAccess, require('./src/routes/pnl'));
 
 // Dynamic template download — generates CSV from actual gateway data
 app.get('/api/templates/mid-config/:clientId', (req, res) => {
