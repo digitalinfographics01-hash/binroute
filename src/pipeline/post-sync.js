@@ -442,6 +442,7 @@ async function _fetchEmployeeNotesForShadow(clientId) {
 // Idempotent: rows where reconciled_at IS NOT NULL are skipped.
 // Returns: { scanned, matched, skipped_reconciled, skipped_orphan }.
 const SHADOW_MARKER_RE = /BinRout(?:e_shadow|ing):\s*id=([a-fA-F0-9-]{8,})/;
+const CLIENT_LAT_RE = /BinRout(?:e_shadow|ing):.*lat=(\d+)/;
 
 function reconcileShadowDecisions(clientId) {
   // Fast path: any rows to scan?
@@ -521,6 +522,9 @@ function reconcileShadowDecisions(clientId) {
     const wouldMatch = (shadow.recommended_gateway_id != null
                     && shadow.recommended_gateway_id === o.actual_gateway_id) ? 1 : 0;
 
+    // Extract client-side latency from the marker (lat=<ms>)
+    const clientLat = _extractClientLatency(o.employee_notes);
+
     runSql(
       `UPDATE shadow_decisions
           SET actual_order_id        = ?,
@@ -530,6 +534,7 @@ function reconcileShadowDecisions(clientId) {
               actual_outcome         = ?,
               actual_outcome_binary  = ?,
               would_match            = ?,
+              latency_ms_client      = ?,
               reconciled_at          = CURRENT_TIMESTAMP
         WHERE shadow_id = ? AND reconciled_at IS NULL`,
       [
@@ -540,6 +545,7 @@ function reconcileShadowDecisions(clientId) {
         outcome,
         outcomeBinary,
         wouldMatch,
+        clientLat,
         shadowId,
       ]
     );
@@ -548,6 +554,14 @@ function reconcileShadowDecisions(clientId) {
 
   saveDb();
   return { scanned, matched, skipped_reconciled: skippedReconciled, skipped_orphan: skippedOrphan };
+}
+
+/** Extract client-side latency (ms) from marker, or null. */
+function _extractClientLatency(notesField) {
+  if (notesField == null) return null;
+  const s = typeof notesField === 'string' ? notesField : String(notesField);
+  const m = s.match(CLIENT_LAT_RE);
+  return m ? parseInt(m[1], 10) : null;
 }
 
 /** Extract the shadow UUID from a notes-field value, or null. */
