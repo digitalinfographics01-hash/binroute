@@ -406,72 +406,22 @@ function _computeCycleAndAttempt(clientId) {
 // Idempotent: skips orders that already have employee_notes populated.
 
 async function _fetchEmployeeNotesForShadow(clientId) {
-  // Any unreconciled shadow decisions?
+  // employee_notes are already populated by the bulk order_find import.
+  // Just count how many orders have BinRouting markers ready for reconciliation.
   const pending = querySql(
-    `SELECT shadow_id, request_received_at
-       FROM shadow_decisions
-      WHERE client_id = ? AND reconciled_at IS NULL
-      ORDER BY request_received_at ASC`,
+    `SELECT COUNT(*) as n FROM shadow_decisions WHERE client_id = ? AND reconciled_at IS NULL`,
     [clientId]
   );
-  if (pending.length === 0) return 0;
+  if (pending[0].n === 0) return 0;
 
-  // Find the date range of pending shadow decisions
-  const earliest = pending[0].request_received_at;
-  const latest = pending[pending.length - 1].request_received_at;
-
-  // Find orders in that window that don't have employee_notes yet
-  const orders = querySql(
-    `SELECT order_id
-       FROM orders
+  const withMarkers = querySql(
+    `SELECT COUNT(*) as n FROM orders
       WHERE client_id = ?
-        AND date_created >= date(?, '-1 day')
-        AND date_created <= date(?, '+1 day')
-        AND (employee_notes IS NULL OR employee_notes = '' OR employee_notes = 'null'
-             OR (employee_notes NOT LIKE '%BinRoute_shadow%' AND employee_notes NOT LIKE '%BinRouting:%'))
-      ORDER BY order_id DESC`,
-    [clientId, earliest, latest]
+        AND (employee_notes LIKE '%BinRoute_shadow%' OR employee_notes LIKE '%BinRouting:%')`,
+    [clientId]
   );
 
-  if (orders.length === 0) return 0;
-
-  // Build Sticky client for this client
-  const clientRow = queryOneSql('SELECT * FROM clients WHERE id = ?', [clientId]);
-  if (!clientRow) return 0;
-
-  const sticky = new StickyClient({
-    baseUrl: clientRow.sticky_base_url,
-    username: clientRow.sticky_username,
-    password: clientRow.sticky_password,
-  });
-
-  let fetched = 0;
-  for (const o of orders) {
-    try {
-      const result = await sticky.orderView(o.order_id);
-      const data = result.data || result;
-      const employeeNotes = data.employeeNotes;
-
-      if (employeeNotes && Array.isArray(employeeNotes) && employeeNotes.length > 0) {
-        const notesStr = JSON.stringify(employeeNotes);
-        // Only update if it contains our marker — avoid unnecessary writes
-        if (notesStr.includes('BinRoute_shadow') || notesStr.includes('BinRouting:')) {
-          runSql(
-            `UPDATE orders SET employee_notes = ? WHERE client_id = ? AND order_id = ?`,
-            [notesStr, clientId, o.order_id]
-          );
-          fetched++;
-        }
-      }
-    } catch (err) {
-      // Non-fatal — order may not exist yet or API hiccup. Reconciler will
-      // retry next sync cycle.
-      console.warn(`[PostSync] 6a: order_view ${o.order_id} failed: ${err.message}`);
-    }
-  }
-
-  if (fetched > 0) saveDb();
-  return fetched;
+  return withMarkers[0].n;
 }
 
 // ---------------------------------------------------------------------------
