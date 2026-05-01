@@ -22,65 +22,144 @@ const StickyClient = require('../api/sticky-client');
  */
 async function runPostSyncPipeline(clientId) {
   console.log(`[PostSync] Starting pipeline for client ${clientId}...`);
-  const start = Date.now();
+  const startTime = Date.now();
+  const errors = [];
 
-  // Step 1: Classify new orders
-  const classified = _classifyOrders(clientId);
-  console.log(`[PostSync] Step 1: Classified ${classified} orders`);
+  function safeStep(name, fn) {
+    try {
+      return fn();
+    } catch (err) {
+      console.error(`[PostSync] ${name} FAILED for client ${clientId}: ${err.message}`);
+      errors.push(name);
+      return null;
+    }
+  }
 
-  // Step 2: Compute derived_product_role for orders missing it
-  const rolesSet = _computeDerivedProductRole(clientId);
-  console.log(`[PostSync] Step 2: Set derived_product_role on ${rolesSet} orders`);
+  const HEAVY_THRESHOLD = 10000;
+  const allowHeavy = process.env.ALLOW_HEAVY_MAIN_CLASSIFICATION === 'true';
 
-  // Step 3: Compute processing_gateway_id (all orders — simple SQL)
-  runSql(`UPDATE orders SET processing_gateway_id =
-    CASE
-      WHEN is_cascaded = 1 AND original_gateway_id IS NOT NULL THEN original_gateway_id
-      ELSE gateway_id
-    END
-    WHERE client_id = ?`, [clientId]);
-  saveDb();
-  console.log(`[PostSync] Step 3: Updated processing_gateway_id`);
+  // Step 1: Classify new orders (fallback guard — staging should pre-compute)
+  const classified = safeStep('Step 1 (classify)', () => {
+    const eligible = queryOneSql(
+      'SELECT COUNT(*) as cnt FROM orders WHERE client_id = ? AND product_type_classified IS NULL', [clientId]
+    )?.cnt || 0;
+
+    if (eligible === 0) {
+      console.log(`[PostSync] Step 1: 0 eligible rows (staging pre-computed)`);
+      return 0;
+    }
+    if (eligible >= 1000) {
+      console.warn(`[PostSync] WARNING: ${eligible} rows need classification — staging post-sync may have failed`);
+    }
+    if (eligible >= HEAVY_THRESHOLD && !allowHeavy) {
+      console.error(`[PostSync] SKIPPED Step 1: ${eligible} rows too large for main process. Set ALLOW_HEAVY_MAIN_CLASSIFICATION=true to override.`);
+      return 0;
+    }
+
+    const n = _classifyOrders(clientId);
+    console.log(`[PostSync] Step 1: Classified ${n} orders`);
+    return n;
+  });
+
+  // Step 2: Compute derived_product_role (fallback guard)
+  const rolesSet = safeStep('Step 2 (product_role)', () => {
+    const eligible = queryOneSql(
+      'SELECT COUNT(*) as cnt FROM orders WHERE client_id = ? AND derived_product_role IS NULL AND product_type_classified IS NOT NULL', [clientId]
+    )?.cnt || 0;
+
+    if (eligible === 0) {
+      console.log(`[PostSync] Step 2: 0 eligible rows (staging pre-computed)`);
+      return 0;
+    }
+    if (eligible >= HEAVY_THRESHOLD && !allowHeavy) {
+      console.error(`[PostSync] SKIPPED Step 2: ${eligible} rows too large for main process.`);
+      return 0;
+    }
+
+    const n = _computeDerivedProductRole(clientId);
+    console.log(`[PostSync] Step 2: Set derived_product_role on ${n} orders`);
+    return n;
+  });
+
+  // Step 2b: Parse cascade chains from system_notes (fallback guard)
+  safeStep('Step 2b (cascade chains)', () => {
+    const eligible = queryOneSql(
+      "SELECT COUNT(*) as cnt FROM orders WHERE client_id = ? AND is_cascaded = 1 AND (cascade_chain IS NULL OR cascade_chain = '')", [clientId]
+    )?.cnt || 0;
+
+    if (eligible === 0) {
+      console.log(`[PostSync] Step 2b: 0 eligible cascades (staging pre-computed)`);
+      return;
+    }
+
+    const { parseCascadeChains } = require('./post-sync-vct');
+    const n = parseCascadeChains(clientId);
+    if (n > 0) console.log(`[PostSync] Step 2b: Parsed ${n} cascade chains`);
+  });
+
+  // Step 3: Compute processing_gateway_id
+  safeStep('Step 3 (processing_gateway)', () => {
+    runSql(`UPDATE orders SET processing_gateway_id =
+      CASE
+        WHEN processing_gateway_id IS NOT NULL AND processing_gateway_id != gateway_id THEN processing_gateway_id
+        WHEN is_cascaded = 1 AND original_gateway_id IS NOT NULL THEN original_gateway_id
+        ELSE gateway_id
+      END
+      WHERE client_id = ?`, [clientId]);
+    saveDb();
+    console.log(`[PostSync] Step 3: Updated processing_gateway_id`);
+  });
 
   // Step 4: Compute derived_cycle + derived_attempt
-  const cyclesSet = _computeCycleAndAttempt(clientId);
-  console.log(`[PostSync] Step 4: Computed cycle/attempt for ${cyclesSet} orders`);
+  const cyclesSet = safeStep('Step 4 (cycle/attempt)', () => {
+    const n = _computeCycleAndAttempt(clientId);
+    console.log(`[PostSync] Step 4: Computed cycle/attempt for ${n} orders`);
+    return n;
+  });
 
   // Step 5: Extract transaction features for AI training
-  const { extractFeatures } = require('../analytics/feature-extraction');
-  const featuresExtracted = extractFeatures(clientId);
-  console.log(`[PostSync] Step 5: Extracted ${featuresExtracted} tx features`);
+  const featuresExtracted = safeStep('Step 5 (tx features)', () => {
+    const { extractFeatures } = require('../analytics/feature-extraction');
+    const n = extractFeatures(clientId);
+    console.log(`[PostSync] Step 5: Extracted ${n} tx features`);
+    return n;
+  });
 
-  // Step 6a: Fetch employeeNotes for orders with pending shadow decisions.
-  //   order_find (bulk import) does NOT return employeeNotes — only order_view does.
-  //   We do targeted order_view calls for orders matching unreconciled shadow decisions.
+  // Step 6a: Fetch employeeNotes for orders with pending shadow decisions
   let notesFetched = 0;
   try {
     notesFetched = await _fetchEmployeeNotesForShadow(clientId);
     console.log(`[PostSync] Step 6a: Fetched employeeNotes for ${notesFetched} shadow orders`);
   } catch (err) {
     console.error(`[PostSync] Step 6a: employeeNotes fetch failed — ${err.message}`);
+    errors.push('Step 6a (employeeNotes)');
   }
 
   // Step 6b: Reconcile shadow decisions against imported orders
-  const reconciled = reconcileShadowDecisions(clientId);
-  console.log(`[PostSync] Step 6b: Reconciled ${reconciled.matched} shadow rows (${reconciled.scanned} orders scanned)`);
+  const reconciled = safeStep('Step 6b (reconcile)', () => {
+    const r = reconcileShadowDecisions(clientId);
+    console.log(`[PostSync] Step 6b: Reconciled ${r.matched} shadow rows (${r.scanned} orders scanned)`);
+    return r;
+  });
 
-  // Step 7: Run Layer 1 shadow alerts (deterministic monitoring)
+  // Step 7: Run Layer 1 shadow alerts
   let shadowAlerts = [];
-  try {
+  shadowAlerts = safeStep('Step 7 (shadow alerts)', () => {
     const { runShadowAlertCheck } = require('../analytics/shadow-alert-runner');
-    shadowAlerts = runShadowAlertCheck(clientId);
-    console.log(`[PostSync] Step 7: Shadow alerts — ${shadowAlerts.length} triggered`);
-  } catch (err) {
-    console.error(`[PostSync] Step 7: Shadow alerts failed — ${err.message}`);
+    const alerts = runShadowAlertCheck(clientId);
+    console.log(`[PostSync] Step 7: Shadow alerts — ${alerts.length} triggered`);
+    return alerts;
+  }) || [];
+
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  if (errors.length > 0) {
+    console.error(`[PostSync] Pipeline finished in ${elapsed}s with ${errors.length} errors: ${errors.join(', ')}`);
+  } else {
+    console.log(`[PostSync] Pipeline complete in ${elapsed}s`);
   }
 
-  const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-  console.log(`[PostSync] Pipeline complete in ${elapsed}s`);
-
   saveDb();
-  return { classified, rolesSet, cyclesSet, featuresExtracted, reconciled, shadowAlerts };
+  return { classified, rolesSet, cyclesSet, featuresExtracted, reconciled, shadowAlerts, errors };
 }
 
 // ---------------------------------------------------------------------------
@@ -298,97 +377,137 @@ function _computeDerivedProductRole(clientId) {
 //   - unknown product type → NULL/NULL
 function _computeCycleAndAttempt(clientId) {
   const { getDb } = require('../db/connection');
-  const orders = querySql(`
-    SELECT id, order_id, customer_id, product_group_id, product_type_classified,
-           order_status, acquisition_date, is_cascaded
-    FROM orders
-    WHERE client_id = ? AND is_test = 0 AND is_internal_test = 0
-    ORDER BY customer_id, product_group_id, acquisition_date ASC, order_id ASC
-  `, [clientId]);
-
-  if (orders.length === 0) return 0;
-
-  // Pre-compile the update statement and batch inside a transaction
   const db = getDb();
-  const updateStmt = db.prepare('UPDATE orders SET derived_cycle = ?, derived_attempt = ? WHERE id = ?');
-  const BATCH_SIZE = 5000;
-  const updates = []; // collect [cycle, attempt, id] tuples
+  const BATCH_SIZE = 500;
+  const HEAP_LIMIT_MB = 400;
 
-  let i = 0;
+  // Also handle NULL customer/product_group orders
+  const nullCount = queryOneSql(`
+    SELECT COUNT(*) as cnt FROM orders
+    WHERE client_id = ? AND is_test = 0 AND is_internal_test = 0
+      AND (customer_id IS NULL OR product_group_id IS NULL)
+      AND (derived_cycle IS NOT NULL OR derived_attempt IS NOT NULL)
+  `, [clientId])?.cnt || 0;
 
-  while (i < orders.length) {
-    const o = orders[i];
-
-    // Orders without customer or product group → NULL
-    if (!o.customer_id || !o.product_group_id) {
-      updates.push([null, null, o.id]);
-      i++;
-      continue;
-    }
-
-    // Collect all orders for this customer+product_group journey
-    const custId = o.customer_id;
-    const pgId = o.product_group_id;
-    const group = [];
-    while (i < orders.length &&
-           orders[i].customer_id === custId &&
-           orders[i].product_group_id === pgId) {
-      group.push(orders[i]);
-      i++;
-    }
-
-    // Process journey
-    let currentCycle = 0;
-    let attemptInCycle = 0;
-    let initialApproved = false;
-
-    for (const row of group) {
-      const ptype = row.product_type_classified;
-      const isApproved = [2, 6, 8].includes(row.order_status);
-      let derivedCycle = null;
-      let derivedAttempt = null;
-
-      if (ptype === 'straight_sale') {
-        derivedCycle = 0;
-        derivedAttempt = 1;
-      } else if (ptype === 'initial' || ptype === 'initial_rebill') {
-        derivedCycle = 0;
-        attemptInCycle++;
-        derivedAttempt = attemptInCycle;
-
-        if (isApproved) {
-          initialApproved = true;
-          currentCycle = 1;
-          attemptInCycle = 0;
-        }
-      } else if (ptype === 'rebill') {
-        derivedCycle = initialApproved ? currentCycle : (currentCycle || 1);
-        attemptInCycle++;
-        derivedAttempt = attemptInCycle;
-
-        if (isApproved) {
-          currentCycle++;
-          attemptInCycle = 0;
-        }
-      }
-
-      updates.push([derivedCycle, derivedAttempt, row.id]);
-    }
+  if (nullCount > 0) {
+    runSql(`UPDATE orders SET derived_cycle = NULL, derived_attempt = NULL
+      WHERE client_id = ? AND is_test = 0 AND is_internal_test = 0
+        AND (customer_id IS NULL OR product_group_id IS NULL)`, [clientId]);
   }
 
-  // Flush in batched transactions for performance
-  for (let b = 0; b < updates.length; b += BATCH_SIZE) {
-    const batch = updates.slice(b, b + BATCH_SIZE);
+  const updateStmt = db.prepare('UPDATE orders SET derived_cycle = ?, derived_attempt = ? WHERE id = ?');
+  const selectStmt = db.prepare(`
+    SELECT id, order_id, product_type_classified, order_status, acquisition_date, is_cascaded
+    FROM orders
+    WHERE client_id = ? AND customer_id = ? AND product_group_id = ?
+      AND is_test = 0 AND is_internal_test = 0
+    ORDER BY acquisition_date ASC, order_id ASC
+  `);
+
+  // Keyset batching: fetch groups in pages using LIMIT/OFFSET on a sorted query
+  const groupCountStmt = db.prepare(`
+    SELECT COUNT(*) as cnt FROM (
+      SELECT DISTINCT customer_id, product_group_id FROM orders
+      WHERE client_id = ? AND is_test = 0 AND is_internal_test = 0
+        AND customer_id IS NOT NULL AND product_group_id IS NOT NULL
+    )
+  `);
+  const totalGroups = groupCountStmt.get(clientId).cnt;
+
+  const groupPageStmt = db.prepare(`
+    SELECT DISTINCT customer_id, product_group_id FROM orders
+    WHERE client_id = ? AND is_test = 0 AND is_internal_test = 0
+      AND customer_id IS NOT NULL AND product_group_id IS NOT NULL
+    ORDER BY customer_id, product_group_id
+    LIMIT ? OFFSET ?
+  `);
+
+  let totalUpdated = nullCount;
+  let batchNum = 0;
+  let offset = 0;
+  let memoryExceeded = false;
+
+  while (offset < totalGroups) {
+    // Memory guard
+    const mem = process.memoryUsage();
+    const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
+    batchNum++;
+
+    if (batchNum % 10 === 0 || batchNum === 1) {
+      console.log(`[PostSync] Step 4 batch ${batchNum}: ${heapMB}MB heap, ${totalUpdated} orders processed, ${offset}/${totalGroups} groups`);
+    }
+
+    if (heapMB > HEAP_LIMIT_MB) {
+      console.error(`[PostSync] Step 4 STOPPED: heap ${heapMB}MB exceeds ${HEAP_LIMIT_MB}MB limit. Processed ${totalUpdated} orders (${offset}/${totalGroups} groups). Remaining groups will be processed next sync.`);
+      memoryExceeded = true;
+      break;
+    }
+
+    // Fetch next batch of groups
+    const groups = groupPageStmt.all(clientId, BATCH_SIZE, offset);
+    if (groups.length === 0) break;
+    offset += groups.length;
+
+    const updates = [];
+
+    for (const { customer_id, product_group_id } of groups) {
+      const group = selectStmt.all(clientId, customer_id, product_group_id);
+
+      let currentCycle = 0;
+      let attemptInCycle = 0;
+      let initialApproved = false;
+
+      for (const row of group) {
+        const ptype = row.product_type_classified;
+        const isApproved = [2, 6, 8].includes(row.order_status);
+        let derivedCycle = null;
+        let derivedAttempt = null;
+
+        if (ptype === 'straight_sale') {
+          derivedCycle = 0;
+          derivedAttempt = 1;
+        } else if (ptype === 'initial' || ptype === 'initial_rebill') {
+          derivedCycle = 0;
+          attemptInCycle++;
+          derivedAttempt = attemptInCycle;
+
+          if (isApproved) {
+            initialApproved = true;
+            currentCycle = 1;
+            attemptInCycle = 0;
+          }
+        } else if (ptype === 'rebill') {
+          derivedCycle = initialApproved ? currentCycle : (currentCycle || 1);
+          attemptInCycle++;
+          derivedAttempt = attemptInCycle;
+
+          if (isApproved) {
+            currentCycle++;
+            attemptInCycle = 0;
+          }
+        }
+
+        updates.push([derivedCycle, derivedAttempt, row.id]);
+      }
+    }
+
+    // Flush this batch in a transaction
     const runBatch = db.transaction((rows) => {
       for (const [cycle, attempt, id] of rows) {
         updateStmt.run(cycle, attempt, id);
       }
     });
-    runBatch(batch);
+    runBatch(updates);
+    totalUpdated += updates.length;
+  }
+
+  if (!memoryExceeded) {
+    const finalMem = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
+    console.log(`[PostSync] Step 4 complete: ${totalGroups} groups, ${totalUpdated} orders, peak ${finalMem}MB heap`);
   }
 
   saveDb();
-  return updates.length;
+  return totalUpdated;
 }
 
 // ---------------------------------------------------------------------------
@@ -460,16 +579,19 @@ function reconcileShadowDecisions(clientId) {
   const orders = querySql(
     `SELECT o.id               AS order_id,
             o.order_id         AS sticky_order_id,
-            o.gateway_id       AS actual_gateway_id,
+            o.processing_gateway_id,
+            o.gateway_id,
+            o.cascade_chain,
+            o.is_cascaded,
             o.order_status,
             o.employee_notes,
             o.system_notes,
             o.custom_fields,
-            g.processor_name   AS actual_processor
+            g.processor_name   AS processing_processor
        FROM orders o
   LEFT JOIN gateways g
          ON g.client_id = o.client_id
-        AND g.gateway_id = o.gateway_id
+        AND g.gateway_id = COALESCE(o.processing_gateway_id, o.gateway_id)
       WHERE o.client_id = ?
         AND (
           (o.employee_notes IS NOT NULL AND (o.employee_notes LIKE '%BinRoute_shadow%' OR o.employee_notes LIKE '%BinRouting:%')) OR
@@ -511,16 +633,66 @@ function reconcileShadowDecisions(clientId) {
       continue;
     }
 
-    // Map Sticky status codes → outcome label (per project_order_status_codes.md).
+    // --- Determine the FIRST-ATTEMPT gateway ---
+    // Source of truth: cascade_chain[0] (parsed from system_notes).
+    // Verification: Beast marker gateway_id= in employee_notes.
+    // Fallback: processing_gateway_id, then gateway_id.
+    let firstAttemptGw = null;
+
+    // 1. cascade_chain[0] — most reliable
+    if (o.cascade_chain && o.cascade_chain.length > 0) {
+      firstAttemptGw = parseInt(o.cascade_chain.split(',')[0], 10);
+    }
+
+    // 2. Verify against Beast marker if present
+    const beastGwMatch = o.employee_notes
+      ? o.employee_notes.match(/BeastInsights:\s*gateway_id=(\d+)/)
+      : null;
+    const beastGw = beastGwMatch ? parseInt(beastGwMatch[1], 10) : null;
+
+    if (beastGw && firstAttemptGw && beastGw !== firstAttemptGw) {
+      // Beast marker disagrees with cascade chain — Beast marker is authoritative
+      // (cascade chain order from system_notes can be misleading)
+      console.warn(`[Reconciler] Order ${o.sticky_order_id}: Beast marker gw=${beastGw} overrides cascade_chain[0]=${firstAttemptGw}`);
+      firstAttemptGw = beastGw;
+    }
+
+    // 3. Fallback chain: Beast marker (if present) → cascade_chain[0] → processing_gateway_id → gateway_id
+    if (!firstAttemptGw) firstAttemptGw = beastGw;
+    if (!firstAttemptGw) firstAttemptGw = o.processing_gateway_id;
+    if (!firstAttemptGw) firstAttemptGw = o.gateway_id;
+
+    // Look up processor name for the first-attempt gateway
+    const firstGwRow = queryOneSql(
+      'SELECT processor_name FROM gateways WHERE client_id = ? AND gateway_id = ?',
+      [clientId, firstAttemptGw]
+    );
+    const firstAttemptProc = firstGwRow ? firstGwRow.processor_name : null;
+
+    // --- Outcome: first-attempt approval only ---
+    // Cascaded orders = first attempt DECLINED (regardless of final order_status).
+    // Non-cascaded: use order_status directly.
     const status = parseInt(o.order_status, 10);
     let outcome;
-    let outcomeBinary;  // P3.4: 0/1 for efficient aggregation
-    if (status === 2 || status === 6 || status === 8) { outcome = 'approved'; outcomeBinary = 1; }
-    else if (status === 7) { outcome = 'declined'; outcomeBinary = 0; }
-    else { outcome = 'pending'; outcomeBinary = null; } // don't count pending in uplift
+    let outcomeBinary;
+    if (o.is_cascaded === 1 || o.is_cascaded === '1') {
+      // Cascaded = first attempt declined, cascade tried other gateways
+      outcome = 'declined';
+      outcomeBinary = 0;
+    } else if (status === 2 || status === 6 || status === 8) {
+      outcome = 'approved';
+      outcomeBinary = 1;
+    } else if (status === 7) {
+      outcome = 'declined';
+      outcomeBinary = 0;
+    } else {
+      outcome = 'pending';
+      outcomeBinary = null;
+    }
 
+    // --- would_match: compare our pick vs the first-attempt gateway ---
     const wouldMatch = (shadow.recommended_gateway_id != null
-                    && shadow.recommended_gateway_id === o.actual_gateway_id) ? 1 : 0;
+                    && shadow.recommended_gateway_id === firstAttemptGw) ? 1 : 0;
 
     // Extract client-side latency from the marker (lat=<ms>)
     const clientLat = _extractClientLatency(o.employee_notes);
@@ -540,8 +712,8 @@ function reconcileShadowDecisions(clientId) {
       [
         o.order_id,
         o.sticky_order_id,
-        o.actual_gateway_id,
-        o.actual_processor,
+        firstAttemptGw,
+        firstAttemptProc,
         outcome,
         outcomeBinary,
         wouldMatch,

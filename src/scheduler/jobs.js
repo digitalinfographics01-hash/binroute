@@ -1,5 +1,8 @@
 const cron = require('node-cron');
-const { querySql } = require('../db/connection');
+const path = require('path');
+const fs = require('fs');
+const { fork } = require('child_process');
+const { querySql, checkpointWal } = require('../db/connection');
 const DataIngestion = require('../api/ingestion');
 const { runClassifiers } = require('../classifiers/runner');
 const { buildPerformanceMatrix } = require('../engine/performance');
@@ -9,119 +12,333 @@ const { evaluatePlaybookImplementations } = require('../engine/playbook-implemen
 const { recomputeAllAnalytics } = require('../analytics/engine');
 const { runPostSyncPipeline } = require('../pipeline/post-sync');
 const { runVctPostSyncPipeline } = require('../pipeline/post-sync-vct');
+const { mergeStagingToMain } = require('../db/staging-merge');
 
-/**
- * Schedule all recurring jobs.
- */
+const WORKER_PATH = path.join(__dirname, '..', '..', 'scripts', 'import-worker.js');
+const STAGING_DIR = path.join(__dirname, '..', '..', 'data', 'staging');
+
+// ---------------------------------------------------------------------------
+// Spawn an import worker as a child process
+// ---------------------------------------------------------------------------
+function spawnImportWorker(clientId, mode, startDate, endDate) {
+  return new Promise((resolve, reject) => {
+    const maxMem = clientId === 6 ? 512 : 384;
+    const child = fork(WORKER_PATH, [
+      `--client=${clientId}`,
+      `--mode=${mode}`,
+      `--start=${startDate}`,
+      `--end=${endDate}`,
+    ], {
+      execArgv: [`--max-old-space-size=${maxMem}`],
+      stdio: ['pipe', 'inherit', 'inherit', 'ipc'],
+    });
+
+    let result = null;
+    child.on('message', (msg) => { result = msg; });
+    child.on('error', (err) => reject(err));
+    child.on('exit', (code) => {
+      if (code === 0 && result && result.status === 'success') {
+        resolve(result);
+      } else {
+        reject(new Error(
+          result && result.error
+            ? result.error
+            : `Worker exited with code ${code}`
+        ));
+      }
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Pre-flight: clean stale staging files, check WAL size
+// ---------------------------------------------------------------------------
+function preFlightChecks() {
+  // Clean staging files older than 24h (skip lock files and files in use)
+  if (fs.existsSync(STAGING_DIR)) {
+    const now = Date.now();
+    const MAX_AGE = 24 * 60 * 60 * 1000;
+    for (const file of fs.readdirSync(STAGING_DIR)) {
+      // Skip lock files
+      if (file.startsWith('.')) continue;
+      try {
+        const fp = path.join(STAGING_DIR, file);
+        const stat = fs.statSync(fp);
+        if (now - stat.mtimeMs > MAX_AGE) {
+          // Check if any sync lock exists for this client (file might be in use by a stale process)
+          const clientMatch = file.match(/^client-(\d+)-/);
+          if (clientMatch) {
+            const lockPath = path.join(STAGING_DIR, `.sync-lock-client-${clientMatch[1]}`);
+            if (fs.existsSync(lockPath)) {
+              console.log(`[Scheduler] Skipping stale file ${file} — sync lock exists for client ${clientMatch[1]}`);
+              continue;
+            }
+          }
+          // Check via lsof if available (Linux)
+          try {
+            const { execSync } = require('child_process');
+            const lsofOut = execSync(`lsof "${fp}" 2>/dev/null || true`, { encoding: 'utf8', timeout: 5000 });
+            if (lsofOut.trim().length > 0) {
+              console.log(`[Scheduler] Skipping stale file ${file} — still in use by another process`);
+              continue;
+            }
+          } catch { /* lsof not available, proceed with delete */ }
+
+          fs.unlinkSync(fp);
+          console.log(`[Scheduler] Cleaned stale staging file: ${file}`);
+        }
+      } catch {}
+    }
+  }
+
+  // WAL checkpoint if WAL is large
+  try {
+    const walPath = path.join(__dirname, '..', '..', 'data', 'binroute.db-wal');
+    if (fs.existsSync(walPath)) {
+      const walSize = fs.statSync(walPath).size;
+      if (walSize > 500 * 1024 * 1024) {
+        console.log(`[Scheduler] WAL is ${(walSize / 1024 / 1024).toFixed(0)}MB — running checkpoint...`);
+        try { checkpointWal(); } catch {}
+      }
+    }
+  } catch {}
+}
+
+// ---------------------------------------------------------------------------
+// Per-client sync lock management
+// ---------------------------------------------------------------------------
+const LOCK_DIR = path.join(__dirname, '..', '..', 'data', 'staging');
+const STALE_SYNC_LOCK_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+function acquireSyncLock(clientId) {
+  const lockPath = path.join(LOCK_DIR, `.sync-lock-client-${clientId}`);
+  // Clean stale lock
+  if (fs.existsSync(lockPath)) {
+    try {
+      const stat = fs.statSync(lockPath);
+      if (Date.now() - stat.mtimeMs > STALE_SYNC_LOCK_MS) {
+        console.log(`[Scheduler] Stale sync lock for client ${clientId} (${Math.round((Date.now() - stat.mtimeMs) / 3600000)}h old) — removing`);
+        fs.unlinkSync(lockPath);
+      } else {
+        console.error(`[Scheduler] Client ${clientId} sync already in progress (lock exists). Skipping.`);
+        return false;
+      }
+    } catch {}
+  }
+  try {
+    fs.writeFileSync(lockPath, `pid=${process.pid} ts=${Date.now()}`, { flag: 'wx' });
+    return true;
+  } catch (err) {
+    if (err.code === 'EEXIST') {
+      console.error(`[Scheduler] Client ${clientId} sync lock conflict. Skipping.`);
+      return false;
+    }
+    throw err;
+  }
+}
+
+function releaseSyncLock(clientId) {
+  const lockPath = path.join(LOCK_DIR, `.sync-lock-client-${clientId}`);
+  try { fs.unlinkSync(lockPath); } catch {}
+}
+
+// ---------------------------------------------------------------------------
+// Import phase: runs in isolated worker, returns result (no main DB writes)
+// ---------------------------------------------------------------------------
+async function runClientImport(clientId, dayWindow, options = {}) {
+  const label = `Client ${clientId}`;
+  const endDate = formatDate(new Date());
+  const startDate = formatDate(daysAgo(dayWindow));
+  const importMode = options.importMode || 'transactions';
+
+  console.log(`[Scheduler] ${label}: starting import (${startDate} to ${endDate}, mode=${importMode})...`);
+
+  // Gateway sync stays in main process (lightweight, needs main DB for lifecycle)
+  try {
+    const ingestion = new DataIngestion(clientId);
+    ingestion.init();
+    await ingestion.syncGateways();
+  } catch (err) {
+    console.error(`[Scheduler] ${label}: gateway sync failed:`, err.message);
+  }
+
+  // --- Import orders via worker process ---
+  let txResult;
+  try {
+    txResult = await spawnImportWorker(clientId, importMode, startDate, endDate);
+    console.log(`[Scheduler] ${label}: import done — ${txResult.stats?.stagingRows || 0} rows in ${txResult.elapsed}s`);
+    if (txResult.stagingPostSync) {
+      const ps = txResult.stagingPostSync;
+      console.log(`[Scheduler] ${label}: staging post-sync: classified=${ps.classified} roles=${ps.rolesSet} cascades=${ps.cascadesParsed} fallback=${ps.fallbackRequired}`);
+    }
+  } catch (err) {
+    console.error(`[Scheduler] ${label}: import FAILED — ${err.message}`);
+    // Retry once
+    console.log(`[Scheduler] ${label}: retrying import in 30s...`);
+    await sleep(30000);
+    try {
+      txResult = await spawnImportWorker(clientId, 'transactions', startDate, endDate);
+      console.log(`[Scheduler] ${label}: retry import done — ${txResult.stats?.stagingRows || 0} rows in ${txResult.elapsed}s`);
+    } catch (retryErr) {
+      console.error(`[Scheduler] ${label}: retry also FAILED — ${retryErr.message}. Skipping this client.`);
+      return null;
+    }
+  }
+
+  return { clientId, txResult, endDate };
+}
+
+// ---------------------------------------------------------------------------
+// Merge+PostSync phase: runs sequentially in main process (one at a time)
+// ---------------------------------------------------------------------------
+async function runClientMergeAndPostSync(importResult, postSyncFn) {
+  const { clientId, txResult, endDate } = importResult;
+  const label = `Client ${clientId}`;
+
+  // --- Merge staging into main DB ---
+  try {
+    const mergeResult = mergeStagingToMain(txResult.stagingPath, clientId);
+    console.log(`[Scheduler] ${label}: merge done — ${mergeResult.inserted} new, ${mergeResult.updated} updated in ${mergeResult.elapsed}s`);
+  } catch (err) {
+    console.error(`[Scheduler] ${label}: merge FAILED — ${err.message}. Staging file preserved for debugging.`);
+    return;
+  }
+
+  // --- Status updates via worker process ---
+  const updatesStart = formatDate(daysAgo(2));
+  try {
+    const updResult = await spawnImportWorker(clientId, 'updates', updatesStart, endDate);
+    console.log(`[Scheduler] ${label}: status updates done — ${updResult.stats?.stagingRows || 0} rows in ${updResult.elapsed}s`);
+    // Merge status updates
+    try {
+      mergeStagingToMain(updResult.stagingPath, clientId);
+    } catch (mergeErr) {
+      console.error(`[Scheduler] ${label}: status update merge failed:`, mergeErr.message);
+    }
+  } catch (err) {
+    console.error(`[Scheduler] ${label}: status updates failed:`, err.message);
+    // Non-fatal — orders were already merged
+  }
+
+  // --- Post-sync pipeline (in main process, on main DB) ---
+  try {
+    await postSyncFn(clientId);
+  } catch (err) {
+    console.error(`[Scheduler] ${label}: post-sync failed:`, err.message);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Post-sync functions per client type
+// ---------------------------------------------------------------------------
+async function kpPostSync(clientId) {
+  // Analysis pipeline
+  try {
+    await runClassifiers(clientId);
+    buildPerformanceMatrix(clientId);
+    detectOptimizationWindows(clientId);
+    detectMidDegradation(clientId);
+    checkWaitingImplementations();
+    evaluateImplementations();
+  } catch (err) {
+    console.error(`[Scheduler] Analysis pipeline failed for client ${clientId}:`, err.message);
+  }
+
+  // Post-sync: classify → derive → reconcile → alerts
+  try {
+    await runPostSyncPipeline(clientId);
+  } catch (err) {
+    console.error(`[Scheduler] Post-sync pipeline failed for client ${clientId}:`, err.message);
+  }
+
+  // Analytics recompute — now AWAITED (no more fire-and-forget)
+  try {
+    await recomputeAllAnalytics(clientId);
+  } catch (err) {
+    console.error(`[Scheduler] Analytics recompute failed for client ${clientId}:`, err.message);
+  }
+
+  try {
+    const pbResult = evaluatePlaybookImplementations();
+    if (pbResult.evaluated > 0 || pbResult.transitioned > 0) {
+      console.log(`[Scheduler] Playbook implementations: ${pbResult.evaluated} evaluated, ${pbResult.transitioned} transitioned`);
+    }
+  } catch (err) {
+    console.error(`[Scheduler] Playbook eval failed:`, err.message);
+  }
+}
+
+async function vctPostSync(clientId) {
+  try {
+    const result = runVctPostSyncPipeline(clientId);
+    console.log(`[Scheduler] VCT post-sync: ${result.classified} classified, ${result.cascadeParsed} cascades parsed`);
+  } catch (err) {
+    console.error(`[Scheduler] VCT post-sync pipeline failed:`, err.message);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Schedule all recurring jobs
+// ---------------------------------------------------------------------------
 function startScheduler() {
   console.log('[Scheduler] Starting scheduled jobs...');
 
-  // Daily sync — Kytsan + Prime Commerce (small clients, fast import + full pipeline)
+  // Daily sync — imports in parallel (isolated workers), merges+post-sync sequential
   cron.schedule('0 6 * * *', async () => {
-    console.log('[Scheduler] Running daily sync (Kytsan, Prime)...');
+    console.log('[Scheduler] === DAILY SYNC START ===');
+    preFlightChecks();
 
-    for (const id of [1, 2]) {
-      try {
-        const ingestion = new DataIngestion(id);
-        ingestion.init();
+    // Define client configs
+    const clientConfigs = [
+      { clientId: 1, dayWindow: 7, postSyncFn: kpPostSync },
+      { clientId: 2, dayWindow: 7, postSyncFn: kpPostSync },
+      { clientId: 6, dayWindow: 3, postSyncFn: vctPostSync, importMode: 'id_based' },
+    ];
 
-        const endDate = formatDate(new Date());
-        const newOrdersStart = formatDate(daysAgo(7));
-        await ingestion.syncGateways();
-        console.log(`[Scheduler] Client ${id}: pulling new orders ${newOrdersStart} to ${endDate}`);
-        await ingestion.pullTransactions(newOrdersStart, endDate);
-
-        const syncVerification = ingestion.verifySyncWindow(newOrdersStart, endDate);
-        if (syncVerification.gaps.length > 0) {
-          console.error(`[Scheduler] Client ${id} VERIFICATION FAILED — gaps detected:`);
-          for (const gap of syncVerification.gaps) {
-            console.error(`  ${gap.day}: API=${gap.apiTotal} DB=${gap.dbCount} (${gap.coverage}%)`);
-          }
-        } else {
-          console.log(`[Scheduler] Client ${id}: all ${syncVerification.daysChecked} days verified (DB counts match API)`);
-        }
-
-        const updatesStart = formatDate(daysAgo(2));
-        console.log(`[Scheduler] Client ${id}: pulling status updates ${updatesStart} to ${endDate}`);
-        await ingestion.pullStatusUpdates(updatesStart, endDate);
-
-        console.log(`[Scheduler] Daily sync complete for client ${id}.`, ingestion.getStats());
-
-        // Analysis pipeline
-        try {
-          await runClassifiers(id);
-          buildPerformanceMatrix(id);
-          detectOptimizationWindows(id);
-          detectMidDegradation(id);
-          checkWaitingImplementations();
-          evaluateImplementations();
-        } catch (err) {
-          console.error(`[Scheduler] Analysis pipeline failed for client ${id}:`, err.message);
-        }
-
-        // Post-sync pipeline: classify → derive → reconcile → alerts → recompute
-        try {
-          await runPostSyncPipeline(id);
-        } catch (err) {
-          console.error(`[Scheduler] Post-sync pipeline failed for client ${id}:`, err.message);
-        }
-        recomputeAllAnalytics(id).catch(err =>
-          console.error(`[Scheduler] Analytics recompute failed for client ${id}:`, err.message)
-        );
-        try {
-          const pbResult = evaluatePlaybookImplementations();
-          if (pbResult.evaluated > 0 || pbResult.transitioned > 0) {
-            console.log(`[Scheduler] Playbook implementations: ${pbResult.evaluated} evaluated, ${pbResult.transitioned} transitioned`);
-          }
-        } catch (err) {
-          console.error(`[Scheduler] Playbook implementation eval failed:`, err.message);
-        }
-      } catch (err) {
-        console.error(`[Scheduler] Daily pull failed for client ${id}:`, err.message);
+    // Acquire per-client locks, skip any that are locked
+    const lockedClients = [];
+    for (const cfg of clientConfigs) {
+      if (acquireSyncLock(cfg.clientId)) {
+        lockedClients.push(cfg);
       }
     }
-    console.log('[Scheduler] Kytsan + Prime daily sync complete.');
-  });
 
-  // Daily sync — VCT (high-volume, separate pipeline so it can't block Kytsan/Prime)
-  cron.schedule('15 6 * * *', async () => {
-    console.log('[Scheduler] Running daily sync (VCT)...');
     try {
-      const ingestion = new DataIngestion(6);
-      ingestion.init();
+      // Phase 1: Imports in parallel (each is its own process + staging DB)
+      const importPromises = lockedClients.map(cfg =>
+        runClientImport(cfg.clientId, cfg.dayWindow, { importMode: cfg.importMode })
+          .catch(err => {
+            console.error(`[Scheduler] Client ${cfg.clientId}: import crashed — ${err.message}`);
+            return null;
+          })
+      );
+      const importResults = await Promise.allSettled(importPromises);
 
-      const endDate = formatDate(new Date());
-      const newOrdersStart = formatDate(daysAgo(3));
-      await ingestion.syncGateways();
-      console.log(`[Scheduler] VCT: pulling new orders ${newOrdersStart} to ${endDate}`);
-      await ingestion.pullTransactions(newOrdersStart, endDate);
+      // Phase 2: Merges + post-sync SEQUENTIAL (one at a time, no DB contention)
+      for (let i = 0; i < lockedClients.length; i++) {
+        const cfg = lockedClients[i];
+        const settled = importResults[i];
+        const result = settled.status === 'fulfilled' ? settled.value : null;
 
-      const syncVerification = ingestion.verifySyncWindow(newOrdersStart, endDate);
-      if (syncVerification.gaps.length > 0) {
-        console.error('[Scheduler] VCT VERIFICATION FAILED — gaps detected:');
-        for (const gap of syncVerification.gaps) {
-          console.error(`  ${gap.day}: API=${gap.apiTotal} DB=${gap.dbCount} (${gap.coverage}%)`);
+        if (!result) {
+          console.error(`[Scheduler] Client ${cfg.clientId}: skipping merge (import failed)`);
+          continue;
         }
-      } else {
-        console.log(`[Scheduler] VCT: all ${syncVerification.daysChecked} days verified (DB counts match API)`);
+
+        try {
+          await runClientMergeAndPostSync(result, cfg.postSyncFn);
+        } catch (err) {
+          console.error(`[Scheduler] Client ${cfg.clientId}: merge/post-sync crashed — ${err.message}`);
+        }
       }
-
-      const updatesStart = formatDate(daysAgo(2));
-      console.log(`[Scheduler] VCT: pulling status updates ${updatesStart} to ${endDate}`);
-      await ingestion.pullStatusUpdates(updatesStart, endDate);
-
-      console.log('[Scheduler] VCT daily sync complete.', ingestion.getStats());
-
-      try {
-        const result = runVctPostSyncPipeline(6);
-        console.log(`[Scheduler] VCT post-sync: ${result.classified} classified, ${result.cascadeParsed} cascades parsed`);
-      } catch (err) {
-        console.error(`[Scheduler] VCT post-sync pipeline failed:`, err.message);
+    } finally {
+      // Always release all locks
+      for (const cfg of lockedClients) {
+        releaseSyncLock(cfg.clientId);
       }
-    } catch (err) {
-      console.error('[Scheduler] VCT daily pull failed:', err.message);
     }
-    console.log('[Scheduler] VCT daily sync complete.');
+
+    console.log('[Scheduler] === DAILY SYNC COMPLETE ===');
   });
 
   // Hourly MID status check (at :30 to avoid colliding with daily sync at :00)
@@ -168,7 +385,7 @@ function startScheduler() {
   });
 
   console.log('[Scheduler] Jobs scheduled:');
-  console.log('  - Daily sync: clients 1,2,6 at 6:00 AM UTC (VCT=3d, others=7d)');
+  console.log('  - Daily sync: clients 1,2,6 at 6:00 AM UTC (parallel import, serialized merge)');
   console.log('  - Hourly MID check: every hour at :30');
   console.log('  - Implementation check: every 6 hours');
   console.log('  - Weekly AI retrain: Sunday 7:00 AM');
@@ -179,6 +396,9 @@ function daysAgo(n) {
 }
 function formatDate(d) {
   return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;
+}
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 module.exports = { startScheduler };

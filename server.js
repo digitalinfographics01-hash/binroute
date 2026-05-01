@@ -227,10 +227,34 @@ async function start() {
   });
 }
 
-start().catch(err => {
-  console.error('Failed to start:', err);
-  closeDb();
-  process.exit(1);
+async function startWithRetry(maxRetries = 5) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await start();
+      return;
+    } catch (err) {
+      if (err.code === 'SQLITE_BUSY' && attempt < maxRetries) {
+        const delay = attempt * 3000;
+        console.error(`[Startup] DB locked (attempt ${attempt}/${maxRetries}), retrying in ${delay / 1000}s...`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      console.error('Failed to start:', err);
+      closeDb();
+      process.exit(1);
+    }
+  }
+}
+
+startWithRetry();
+
+// Catch uncaught errors — log but don't crash the server
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught exception (server kept alive):', err.message);
+  console.error(err.stack);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] Unhandled rejection (server kept alive):', reason);
 });
 
 // Graceful shutdown
