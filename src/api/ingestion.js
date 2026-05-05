@@ -27,19 +27,37 @@ function logImport(msg, logPath) {
  * to pull all orders in a single paginated call — no per-campaign iteration.
  */
 class DataIngestion {
-  constructor(clientId) {
+  constructor(clientId, options = {}) {
     this.clientId = clientId;
     this.client = null;
     this.stats = { orders: 0, gateways: 0, errors: 0 };
+    // Optional: use custom DB helpers (for staging isolation).
+    // When not provided, falls back to module-level singleton (backward compat).
+    const h = options.dbHelpers;
+    this._runSql = h ? h.runSql : runSql;
+    this._querySql = h ? h.querySql : querySql;
+    this._queryOneSql = h ? h.queryOneSql : queryOneSql;
+    this._transaction = h ? h.transaction : transaction;
+    this._checkpointWal = h ? h.checkpointWal : checkpointWal;
+    this._saveDb = h ? h.saveDb : saveDb;
   }
 
   init() {
-    const row = queryOneSql('SELECT * FROM clients WHERE id = ?', [this.clientId]);
+    const row = this._queryOneSql('SELECT * FROM clients WHERE id = ?', [this.clientId]);
     if (!row) throw new Error(`Client ${this.clientId} not found`);
     this.client = new StickyClient({
       baseUrl: row.sticky_base_url,
       username: row.sticky_username,
       password: row.sticky_password,
+    });
+    return this;
+  }
+
+  initWithCredentials(creds) {
+    this.client = new StickyClient({
+      baseUrl: creds.sticky_base_url,
+      username: creds.sticky_username,
+      password: creds.sticky_password,
     });
     return this;
   }
@@ -54,15 +72,15 @@ class DataIngestion {
     const { gateways: rawGateways, highestId } = await this.client.scanGateways(startId);
     console.log(`[Ingestion] Found ${rawGateways.length} gateways, highest ID: ${highestId}`);
 
-    transaction(() => {
+    this._transaction(() => {
       for (const gw of rawGateways) {
-        const existing = queryOneSql(
+        const existing = this._queryOneSql(
           'SELECT lifecycle_state, gateway_active, gateway_descriptor FROM gateways WHERE client_id = ? AND gateway_id = ?',
           [this.clientId, gw.gateway_id]
         );
 
         if (existing) {
-          runSql(`
+          this._runSql(`
             UPDATE gateways SET
               gateway_alias = ?, gateway_provider = ?, gateway_descriptor = ?,
               gateway_active = ?, gateway_type = ?, gateway_currency = ?,
@@ -80,7 +98,7 @@ class DataIngestion {
             this.clientId, gw.gateway_id,
           ]);
         } else {
-          runSql(`
+          this._runSql(`
             INSERT INTO gateways (
               client_id, gateway_id, gateway_alias, gateway_provider,
               gateway_descriptor, gateway_active, gateway_created,
@@ -105,16 +123,16 @@ class DataIngestion {
           (gw.gateway_alias && gw.gateway_alias.toLowerCase().includes('closed'));
 
         if (isNowClosed && existing && existing.lifecycle_state !== 'closed') {
-          runSql('UPDATE gateways SET lifecycle_state = ? WHERE client_id = ? AND gateway_id = ?',
+          this._runSql('UPDATE gateways SET lifecycle_state = ? WHERE client_id = ? AND gateway_id = ?',
             ['closed', this.clientId, gw.gateway_id]);
           this._createAlert('P0', 'mid_closure', `MID Closed: Gateway ${gw.gateway_id}`,
             `Gateway ${gw.gateway_id} (${gw.gateway_descriptor || gw.gateway_alias}) is now closed.`,
             gw.gateway_id);
         } else if (!isNowClosed && !existing) {
-          runSql('UPDATE gateways SET lifecycle_state = ? WHERE client_id = ? AND gateway_id = ?',
+          this._runSql('UPDATE gateways SET lifecycle_state = ? WHERE client_id = ? AND gateway_id = ?',
             ['ramp-up', this.clientId, gw.gateway_id]);
         } else if (!isNowClosed && existing && existing.lifecycle_state === 'ramp-up') {
-          runSql('UPDATE gateways SET lifecycle_state = ? WHERE client_id = ? AND gateway_id = ?',
+          this._runSql('UPDATE gateways SET lifecycle_state = ? WHERE client_id = ? AND gateway_id = ?',
             ['active', this.clientId, gw.gateway_id]);
         }
 
@@ -135,7 +153,7 @@ class DataIngestion {
     console.log('[Ingestion] Syncing campaigns...');
 
     // Get all unique campaign_ids from orders
-    const orderCamps = querySql(
+    const orderCamps = this._querySql(
       'SELECT DISTINCT campaign_id FROM orders WHERE client_id = ? AND campaign_id IS NOT NULL',
       [this.clientId]
     );
@@ -154,7 +172,7 @@ class DataIngestion {
         }
 
         const c = resp.data;
-        const existing = queryOneSql(
+        const existing = this._queryOneSql(
           'SELECT id FROM campaigns WHERE client_id = ? AND campaign_id = ?',
           [this.clientId, campId]
         );
@@ -165,12 +183,12 @@ class DataIngestion {
         const isPaymentRouted = c.gateway?.account_id ? 1 : 0;
 
         if (existing) {
-          runSql(
+          this._runSql(
             "UPDATE campaigns SET campaign_name = ?, is_payment_routed = ?, gateway_ids = ?, updated_at = datetime('now') WHERE client_id = ? AND campaign_id = ?",
             [name, isPaymentRouted, gwId ? String(gwId) : null, this.clientId, campId]
           );
         } else {
-          runSql(
+          this._runSql(
             'INSERT INTO campaigns (client_id, campaign_id, campaign_name, is_payment_routed, gateway_ids) VALUES (?, ?, ?, ?, ?)',
             [this.clientId, campId, name, isPaymentRouted, gwId ? String(gwId) : null]
           );
@@ -183,7 +201,7 @@ class DataIngestion {
       }
     }
 
-    saveDb();
+    this._saveDb();
     console.log(`[Ingestion] Campaign sync complete: ${synced} synced, ${failed} failed`);
     return synced;
   }
@@ -274,31 +292,36 @@ class DataIngestion {
           this.progress.totalChunksCompleted += result.chunksSaved || 0;
           this.progress.totalChunksFailed += result.chunksFailed || 0;
 
-          // Verification: compare fetched orders vs API probe total.
-          // We use totalFetched (orders received from API) not DB date count,
-          // because acquisition_date may differ from the API's create date
-          // (e.g., rebills have acquisition_date = original subscription date).
+          // Verification: compare fetched orders AND DB count vs API probe total.
           const fetched = result.totalFetched || 0;
-          const coverage = result.apiTotal > 0
+          const fetchCoverage = result.apiTotal > 0
             ? Math.min(1, fetched / result.apiTotal)
             : 1;
 
-          if (coverage >= 0.98) {
+          // DB-level verification — confirms orders actually persisted
+          const dbCount = this._getDBCountForDay(day);
+          const dbCoverage = result.apiTotal > 0
+            ? Math.min(1, dbCount / result.apiTotal)
+            : 1;
+
+          const verified = fetchCoverage >= 0.98 && dbCoverage >= 0.95;
+
+          if (verified) {
             checkpoint.days[day] = {
               status: 'verified', api_total: result.apiTotal,
-              fetched, saved: result.totalSaved || 0,
+              fetched, db_count: dbCount, saved: result.totalSaved || 0,
               retries, completed_at: new Date().toISOString()
             };
             this.progress.verifiedDays++;
-            log(`  ${day}: verified ${fetched}/${result.apiTotal} fetched (${(coverage * 100).toFixed(1)}%), ${result.totalSaved || 0} saved`);
+            log(`  ${day}: verified — API=${result.apiTotal} Fetched=${fetched} DB=${dbCount} (${(dbCoverage * 100).toFixed(1)}%)`);
           } else {
             checkpoint.days[day] = {
               status: 'partial', api_total: result.apiTotal,
-              fetched, saved: result.totalSaved || 0,
+              fetched, db_count: dbCount, saved: result.totalSaved || 0,
               retries: retries + 1, completed_at: new Date().toISOString()
             };
             this.progress.partialDays++;
-            log(`  ${day}: PARTIAL ${fetched}/${result.apiTotal} fetched (${(coverage * 100).toFixed(1)}%) — will retry`);
+            log(`  ${day}: PARTIAL — API=${result.apiTotal} Fetched=${fetched} (${(fetchCoverage * 100).toFixed(1)}%) DB=${dbCount} (${(dbCoverage * 100).toFixed(1)}%) — will retry`);
           }
         } catch (err) {
           checkpoint.days[day] = {
@@ -337,15 +360,18 @@ class DataIngestion {
             cpPath,
           });
           const fetched = result.totalFetched || 0;
-          const coverage = result.apiTotal > 0 ? Math.min(1, fetched / result.apiTotal) : 1;
+          const fetchCoverage = result.apiTotal > 0 ? Math.min(1, fetched / result.apiTotal) : 1;
+          const dbCount = this._getDBCountForDay(day);
+          const dbCoverage = result.apiTotal > 0 ? Math.min(1, dbCount / result.apiTotal) : 1;
           checkpoint.days[day].fetched = fetched;
+          checkpoint.days[day].db_count = dbCount;
           checkpoint.days[day].saved = result.totalSaved || 0;
           checkpoint.days[day].retries++;
-          if (coverage >= 0.98) {
+          if (fetchCoverage >= 0.98 && dbCoverage >= 0.95) {
             checkpoint.days[day].status = 'verified';
-            log(`  ${day}: retry verified ${fetched}/${result.apiTotal} fetched, ${result.totalSaved || 0} saved`);
+            log(`  ${day}: retry verified — API=${result.apiTotal} Fetched=${fetched} DB=${dbCount} (${(dbCoverage * 100).toFixed(1)}%)`);
           } else {
-            log(`  ${day}: retry still partial ${fetched}/${result.apiTotal} (${(coverage * 100).toFixed(1)}%)`);
+            log(`  ${day}: retry still partial — API=${result.apiTotal} Fetched=${fetched} (${(fetchCoverage * 100).toFixed(1)}%) DB=${dbCount} (${(dbCoverage * 100).toFixed(1)}%)`);
           }
         } catch (err) {
           checkpoint.days[day].retries++;
@@ -475,7 +501,7 @@ class DataIngestion {
 
         // WAL checkpoint every 10 chunks to keep WAL file manageable
         if (chunksSaved % 10 === 0) {
-          try { checkpointWal(); } catch { /* ignore WAL checkpoint errors */ }
+          try { this._checkpointWal(); } catch { /* ignore WAL checkpoint errors */ }
         }
       } else {
         allOrders.push(...orders);
@@ -514,7 +540,7 @@ class DataIngestion {
           log(`    ${day}: retry chunk, ${orders.length} fetched, fetch ${fetchMs}ms, save ${saveMs}ms, total ${totalSaved}`);
 
           if (chunksSaved % 10 === 0) {
-            try { checkpointWal(); } catch { /* ignore */ }
+            try { this._checkpointWal(); } catch { /* ignore */ }
           }
         } else {
           allOrders.push(...orders);
@@ -642,7 +668,7 @@ class DataIngestion {
   _saveOrderBatchToDB(rawOrders) {
     let saved = 0;
     try {
-      transaction(() => {
+      this._transaction(() => {
         for (const raw of rawOrders) {
           if (!raw.order_id) continue;
           try {
@@ -664,7 +690,7 @@ class DataIngestion {
         try {
           const order = this.client.normalizeOrder(raw);
           this._insertOrderSafe(order);
-          saveDb();
+          this._saveDb();
           saved++;
           this.stats.orders++;
         } catch { this.stats.errors++; }
@@ -678,7 +704,7 @@ class DataIngestion {
    * without wiping derived columns (cascade_chain, derived_product_role, etc.).
    */
   _insertOrderSafe(order) {
-    runSql(`
+    this._runSql(`
       INSERT INTO orders (
         client_id, order_id, customer_id, contact_id, is_anonymous_decline,
         campaign_id, gateway_id, gateway_descriptor,
@@ -805,7 +831,7 @@ class DataIngestion {
   }
 
   _getDBCount() {
-    const row = queryOneSql('SELECT COUNT(*) as cnt FROM orders WHERE client_id = ?', [this.clientId]);
+    const row = this._queryOneSql('SELECT COUNT(*) as cnt FROM orders WHERE client_id = ?', [this.clientId]);
     return row?.cnt || 0;
   }
 
@@ -820,16 +846,258 @@ class DataIngestion {
     const nextDay = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
     nextDay.setDate(nextDay.getDate() + 1);
     const dayEnd = nextDay.toISOString().split('T')[0];
-    const row = queryOneSql(
+    const row = this._queryOneSql(
       'SELECT COUNT(DISTINCT order_id) as cnt FROM orders WHERE client_id = ? AND date_created >= ? AND date_created < ?',
       [this.clientId, dayStart, dayEnd]
     );
     return row?.cnt || 0;
   }
 
+  // ──────────────────────────────────────────────
+  // IMPORT RUN LOGGING
+  // ──────────────────────────────────────────────
+
+  _ensureImportLogTables() {
+    try {
+      this._runSql(`
+        CREATE TABLE IF NOT EXISTS import_runs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          client_id INTEGER NOT NULL,
+          run_type TEXT NOT NULL,
+          start_date TEXT,
+          end_date TEXT,
+          started_at TEXT DEFAULT (datetime('now')),
+          finished_at TEXT,
+          total_api_orders INTEGER DEFAULT 0,
+          total_new INTEGER DEFAULT 0,
+          total_updated INTEGER DEFAULT 0,
+          total_failed INTEGER DEFAULT 0,
+          elapsed_s REAL,
+          status TEXT DEFAULT 'running'
+        )
+      `);
+      this._runSql(`
+        CREATE TABLE IF NOT EXISTS import_run_days (
+          run_id INTEGER NOT NULL,
+          day TEXT NOT NULL,
+          api_total INTEGER DEFAULT 0,
+          fetched INTEGER DEFAULT 0,
+          new_inserts INTEGER DEFAULT 0,
+          updated INTEGER DEFAULT 0,
+          failed INTEGER DEFAULT 0,
+          PRIMARY KEY (run_id, day)
+        )
+      `);
+    } catch {}
+  }
+
+  _startImportRun(runType, startDate, endDate) {
+    try {
+      this._runSql(
+        'INSERT INTO import_runs (client_id, run_type, start_date, end_date) VALUES (?, ?, ?, ?)',
+        [this.clientId, runType, startDate, endDate]
+      );
+      const row = this._queryOneSql('SELECT last_insert_rowid() as id');
+      return row?.id;
+    } catch { return null; }
+  }
+
+  _logImportDay(runId, day, apiTotal, fetched, newInserts, updated, failed) {
+    if (!runId) return;
+    try {
+      this._runSql(
+        'INSERT OR REPLACE INTO import_run_days (run_id, day, api_total, fetched, new_inserts, updated, failed) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [runId, day, apiTotal, fetched, newInserts, updated, failed]
+      );
+    } catch {}
+  }
+
+  _finishImportRun(runId, totalApi, totalNew, totalUpdated, totalFailed, elapsed) {
+    if (!runId) return;
+    try {
+      this._runSql(
+        `UPDATE import_runs SET finished_at = datetime('now'), total_api_orders = ?, total_new = ?, total_updated = ?, total_failed = ?, elapsed_s = ?, status = 'complete' WHERE id = ?`,
+        [totalApi, totalNew, totalUpdated, totalFailed, elapsed, runId]
+      );
+    } catch {}
+  }
+
+  /**
+   * Verify DB counts for each day in a sync window against the last checkpoint.
+   * Returns { daysChecked, gaps: [{ day, apiTotal, dbCount, coverage }] }
+   */
+  verifySyncWindow(startDate, endDate) {
+    const days = this._generateDayList(startDate, endDate);
+    const gaps = [];
+
+    // Load the most recent checkpoint for this client (if any)
+    const cpPath = getCheckpointPath(this.clientId);
+    let checkpoint = { days: {} };
+    try {
+      if (fs.existsSync(cpPath)) {
+        checkpoint = JSON.parse(fs.readFileSync(cpPath, 'utf8'));
+      }
+    } catch { /* no checkpoint = verify all days without API total */ }
+
+    for (const day of days) {
+      const dbCount = this._getDBCountForDay(day);
+      const cpEntry = checkpoint.days?.[day];
+      const apiTotal = cpEntry?.api_total || 0;
+
+      // If we have an API total from checkpoint, verify DB coverage
+      if (apiTotal > 0) {
+        const coverage = Math.round((dbCount / apiTotal) * 1000) / 10;
+        if (coverage < 95) {
+          gaps.push({ day, apiTotal, dbCount, coverage });
+        }
+      } else if (dbCount === 0) {
+        // No checkpoint entry and 0 DB rows — likely a gap
+        gaps.push({ day, apiTotal: 'unknown', dbCount, coverage: 0 });
+      }
+    }
+
+    return { daysChecked: days.length, gaps };
+  }
+
   // Legacy checkpoint methods — kept for backward compat with old checkpoint files
   _writeCheckpoint() { /* no-op — replaced by _saveCheckpoint */ }
   _writeCheckpointTo() { /* no-op — replaced by _saveCheckpoint */ }
+
+  // ──────────────────────────────────────────────
+  // ID-BASED IMPORT — order_find (IDs only) + batched order_view
+  // Replaces time-split chunking. Pagination works correctly without
+  // return_type=order_view. Then batch order_view 50 IDs at a time.
+  // Tested: 10 orders/sec, zero dupes, 18 min for VCT vs 2+ hours.
+  // ──────────────────────────────────────────────
+
+  async pullTransactionsById(startDate, endDate, options = {}) {
+    const logPath = getLogPath(this.clientId);
+    const log = (msg) => logImport(msg, logPath);
+    const BATCH_SIZE = options.batchSize || 50;
+    const VIEW_CONCURRENCY = options.viewConcurrency || 5;
+
+    log(`=== ID-BASED IMPORT START [client ${this.clientId}]: ${startDate} to ${endDate} ===`);
+    const progressStart = Date.now();
+
+    // Ensure import_runs tables exist
+    this._ensureImportLogTables();
+    const runId = this._startImportRun('import', startDate, endDate);
+
+    const days = this._generateDayList(startDate, endDate);
+    let totalIds = 0;
+    let totalSaved = 0;
+    let totalApiCalls = 0;
+    let failedDays = 0;
+
+    for (const day of [...days].reverse()) {
+      try {
+        // Step 1: Get all order IDs for this day (no order_view, pagination works)
+        const dayIds = [];
+        let page = 1;
+        let dayTotal = 0;
+
+        while (true) {
+          const result = await this.client._post('order_find', {
+            campaign_id: 'all',
+            start_date: day, end_date: day,
+            date_type: 'create', criteria: 'all', search_type: 'all',
+            results_per_page: 5000, page,
+          });
+          totalApiCalls++;
+
+          if (!result || result.response_code !== '100') {
+            if (result?.response_code === '200') break; // no orders
+            throw new Error(`order_find failed: code=${result?.response_code}`);
+          }
+
+          dayTotal = parseInt(result.total_orders || 0, 10);
+          const ids = Array.isArray(result.order_id) ? result.order_id : [result.order_id];
+          dayIds.push(...ids.filter(Boolean));
+
+          if (dayIds.length >= dayTotal) break;
+          page++;
+          if (page > 200) break; // safety
+        }
+
+        if (dayIds.length === 0) {
+          log(`  ${day}: 0 orders`);
+          continue;
+        }
+
+        log(`  ${day}: ${dayIds.length} IDs fetched (API total: ${dayTotal})`);
+        totalIds += dayIds.length;
+
+        // Track existing count before save to compute new vs updated
+        const dayExisting = this._getDBCountForDay(day);
+
+        // Step 2: Batch order_view — 50 IDs per call, N concurrent
+        const batches = [];
+        for (let i = 0; i < dayIds.length; i += BATCH_SIZE) {
+          batches.push(dayIds.slice(i, i + BATCH_SIZE));
+        }
+
+        let daySaved = 0;
+        for (let bi = 0; bi < batches.length; bi += VIEW_CONCURRENCY) {
+          const concurrentBatches = batches.slice(bi, bi + VIEW_CONCURRENCY);
+
+          const results = await Promise.all(concurrentBatches.map(async (batch) => {
+            const idStr = batch.join(',');
+            const resp = await this.client._post('order_view', { order_id: idStr });
+            totalApiCalls++;
+
+            if (!resp || resp.response_code !== '100') return [];
+
+            // Multi-ID: { response_code, data: { 'id1': {...}, 'id2': {...} } }
+            if (resp.data && typeof resp.data === 'object' && !Array.isArray(resp.data)) {
+              return Object.values(resp.data).filter(o => o && o.order_id);
+            }
+
+            // Single order: flat object with order_id at top level
+            if (resp.order_id && typeof resp.order_id !== 'object') {
+              return [resp];
+            }
+
+            return [];
+          }));
+
+          // Save all fetched orders
+          const allOrders = results.flat();
+          if (allOrders.length > 0) {
+            const saved = this._saveOrderBatchToDB(allOrders);
+            daySaved += saved;
+          }
+        }
+
+        totalSaved += daySaved;
+        const dbCount = this._getDBCountForDay(day);
+        const newInserts = dbCount - (dayExisting || 0);
+        const updated = daySaved - newInserts;
+        const coverage = dayTotal > 0 ? (dbCount / dayTotal * 100).toFixed(1) : '100.0';
+        log(`  ${day}: ${daySaved} processed (${newInserts} new, ${updated} updated), DB=${dbCount} (${coverage}%)`);
+
+        // Log to DB
+        this._logImportDay(runId, day, dayTotal, daySaved, newInserts, updated, 0);
+
+        // WAL checkpoint every few days
+        if (totalSaved % 5000 < BATCH_SIZE) {
+          try { this._checkpointWal(); } catch {}
+        }
+
+      } catch (err) {
+        log(`  ${day}: FAILED — ${err.message}`);
+        failedDays++;
+        this._logImportDay(runId, day, 0, 0, 0, 0, 1);
+      }
+    }
+
+    const elapsed = ((Date.now() - progressStart) / 1000).toFixed(1);
+    const throughput = totalSaved > 0 ? Math.round(totalSaved / (elapsed / 1)) : 0;
+    log(`=== IMPORT COMPLETE ===`);
+    log(`IDs: ${totalIds}, Saved: ${totalSaved}, API calls: ${totalApiCalls}, Failed days: ${failedDays}, Time: ${elapsed}s, Throughput: ${throughput}/s`);
+
+    this._finishImportRun(runId, totalIds, totalSaved, totalSaved - totalIds + failedDays, failedDays, elapsed);
+    this._updateSyncState('id_based_pull');
+  }
 
   // ──────────────────────────────────────────────
   // INCREMENTAL SYNC — order_find + return_type=order_view
@@ -861,13 +1129,13 @@ class DataIngestion {
             totalImported++;
           } catch { this.stats.errors++; }
         }
-        saveDb();
+        this._saveDb();
       } catch (err) {
         console.log(`[Ingestion] ${day}: FAILED - ${err.message}`);
       }
     }
 
-    saveDb();
+    this._saveDb();
     this._updateSyncState('incremental_pull');
     console.log(`[Ingestion] Incremental complete. Processed: ${totalImported}`);
   }
@@ -881,6 +1149,10 @@ class DataIngestion {
   async pullStatusUpdates(startDate, endDate) {
     const log = (msg) => console.log(`[Ingestion] ${msg}`);
     log(`Status update sync: ${startDate} to ${endDate}`);
+
+    this._ensureImportLogTables();
+    const runId = this._startImportRun('status_update', startDate, endDate);
+    const progressStart = Date.now();
 
     // Step 1: Get all order IDs that were updated in this window
     let allOrderIds = [];
@@ -909,31 +1181,63 @@ class DataIngestion {
       return;
     }
 
-    log(`Found ${allOrderIds.length} updated orders. Fetching full details...`);
+    log(`Found ${allOrderIds.length} updated orders. Fetching full details (batch=50, concurrency=5)...`);
 
-    // Step 2: Fetch each order via order_view and upsert
+    // Step 2: Batch order_view — 50 IDs per call, 5 concurrent (same as id_based import)
+    const BATCH_SIZE = 50;
+    const VIEW_CONCURRENCY = 5;
     let fetched = 0, saved = 0, errors = 0;
-    for (const oid of allOrderIds) {
-      try {
-        const raw = await this.client._post('order_view', { order_id: String(oid) });
-        fetched++;
-        if (raw && raw.order_id) {
-          const order = this.client.normalizeOrder(raw);
-          this._insertOrderSafe(order);
-          saved++;
+
+    const batches = [];
+    for (let i = 0; i < allOrderIds.length; i += BATCH_SIZE) {
+      batches.push(allOrderIds.slice(i, i + BATCH_SIZE));
+    }
+
+    for (let bi = 0; bi < batches.length; bi += VIEW_CONCURRENCY) {
+      const concurrentBatches = batches.slice(bi, bi + VIEW_CONCURRENCY);
+
+      const results = await Promise.all(concurrentBatches.map(async (batch) => {
+        const idStr = batch.join(',');
+        try {
+          const resp = await this.client._post('order_view', { order_id: idStr });
+          if (!resp || resp.response_code !== '100') return [];
+
+          // Multi-ID response: { data: { 'id1': {...}, 'id2': {...} } }
+          if (resp.data && typeof resp.data === 'object' && !Array.isArray(resp.data)) {
+            return Object.values(resp.data).filter(o => o && o.order_id);
+          }
+          // Single order response
+          if (resp.order_id) return [resp];
+          return [];
+        } catch (e) {
+          errors += batch.length;
+          return [];
         }
-      } catch (e) {
-        errors++;
+      }));
+
+      for (const orders of results) {
+        for (const raw of orders) {
+          fetched++;
+          try {
+            const order = this.client.normalizeOrder(raw);
+            this._insertOrderSafe(order);
+            saved++;
+          } catch (e) {
+            errors++;
+          }
+        }
       }
 
-      if (fetched % 500 === 0) {
-        saveDb();
+      if (fetched % 500 < BATCH_SIZE * VIEW_CONCURRENCY) {
+        this._saveDb();
         log(`  Progress: ${fetched}/${allOrderIds.length} fetched, ${saved} saved, ${errors} errors`);
       }
     }
 
-    saveDb();
+    this._saveDb();
     this._updateSyncState('status_updates');
+    const elapsed = ((Date.now() - progressStart) / 1000).toFixed(1);
+    this._finishImportRun(runId, allOrderIds.length, saved, fetched - saved, errors, elapsed);
     log(`Status updates complete: ${fetched} fetched, ${saved} saved, ${errors} errors`);
   }
 
@@ -943,7 +1247,7 @@ class DataIngestion {
 
   async checkMidStatus() {
     console.log(`[Ingestion] Checking MID status...`);
-    const gateways = querySql(
+    const gateways = this._querySql(
       'SELECT gateway_id, lifecycle_state, gateway_active, gateway_descriptor, last_checked FROM gateways WHERE client_id = ? AND lifecycle_state != ?',
       [this.clientId, 'closed']
     );
@@ -958,14 +1262,14 @@ class DataIngestion {
           (data.gateway_descriptor && data.gateway_descriptor.toLowerCase().includes('closed'));
 
         if (isNowClosed && gw.lifecycle_state !== 'closed') {
-          runSql("UPDATE gateways SET lifecycle_state = 'closed', gateway_active = 0, last_checked = datetime('now') WHERE client_id = ? AND gateway_id = ?",
+          this._runSql("UPDATE gateways SET lifecycle_state = 'closed', gateway_active = 0, last_checked = datetime('now') WHERE client_id = ? AND gateway_id = ?",
             [this.clientId, gw.gateway_id]);
           this._createAlert('P0', 'mid_closure', `MID Closed: Gateway ${gw.gateway_id}`,
             `Gateway ${gw.gateway_id} (${data.gateway_descriptor || ''}) just went inactive.`,
             gw.gateway_id);
           changes++;
         } else {
-          runSql("UPDATE gateways SET last_checked = datetime('now') WHERE client_id = ? AND gateway_id = ?",
+          this._runSql("UPDATE gateways SET last_checked = datetime('now') WHERE client_id = ? AND gateway_id = ?",
             [this.clientId, gw.gateway_id]);
         }
       } catch (err) {
@@ -973,7 +1277,7 @@ class DataIngestion {
       }
     }
 
-    saveDb();
+    this._saveDb();
     this._updateSyncState('mid_check');
     console.log(`[Ingestion] MID check complete. Changes: ${changes}`);
     return changes;
@@ -989,12 +1293,12 @@ class DataIngestion {
   }
 
   _createAlert(priority, type, title, description, gatewayId = null) {
-    const existing = queryOneSql(
+    const existing = this._queryOneSql(
       'SELECT id FROM alerts WHERE client_id = ? AND alert_type = ? AND gateway_id = ? AND is_resolved = 0',
       [this.clientId, type, gatewayId]
     );
     if (!existing) {
-      runSql(
+      this._runSql(
         'INSERT INTO alerts (client_id, priority, alert_type, title, description, gateway_id) VALUES (?, ?, ?, ?, ?, ?)',
         [this.clientId, priority, type, title, description, gatewayId]
       );
@@ -1002,23 +1306,23 @@ class DataIngestion {
   }
 
   _updateSyncState(syncType) {
-    const existing = queryOneSql(
+    const existing = this._queryOneSql(
       'SELECT id FROM sync_state WHERE client_id = ? AND sync_type = ?',
       [this.clientId, syncType]
     );
     const total = this.stats.orders + this.stats.gateways;
     if (existing) {
-      runSql(
+      this._runSql(
         "UPDATE sync_state SET last_sync_at = datetime('now'), records_synced = ?, status = 'complete', error_message = NULL WHERE client_id = ? AND sync_type = ?",
         [total, this.clientId, syncType]
       );
     } else {
-      runSql(
+      this._runSql(
         "INSERT INTO sync_state (client_id, sync_type, last_sync_at, records_synced, status) VALUES (?, ?, datetime('now'), ?, 'complete')",
         [this.clientId, syncType, total]
       );
     }
-    saveDb();
+    this._saveDb();
   }
 
   getStats() { return { ...this.stats }; }
@@ -1068,6 +1372,13 @@ async function runIngestion() {
       await ingestion.pullTransactions(startDate, endDate);
       break;
     }
+    case 'id-pull': {
+      ingestion.init();
+      const startDate = args[2] || formatDate(daysAgo(3));
+      const endDate = args[3] || formatDate(new Date());
+      await ingestion.pullTransactionsById(startDate, endDate);
+      break;
+    }
     case 'updated': {
       ingestion.init();
       const startDate = args[2] || formatDate(daysAgo(1));
@@ -1096,7 +1407,8 @@ async function runIngestion() {
     default:
       console.log('Usage: node ingestion.js <command> [clientId] [args...]');
       console.log('  test [clientId]                    — 3-day test pull');
-      console.log('  pull [clientId] [start] [end]      — historical import');
+      console.log('  pull [clientId] [start] [end]      — historical import (time-split)');
+      console.log('  id-pull [clientId] [start] [end]   — ID-based import (reliable)');
       console.log('  updated [clientId] [start] [end]   — daily incremental');
       console.log('  gateways [clientId]                — sync gateways');
       console.log('  mid-check [clientId]               — hourly MID check');

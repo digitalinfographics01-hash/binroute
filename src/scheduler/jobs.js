@@ -21,6 +21,12 @@ const STAGING_DIR = path.join(__dirname, '..', '..', 'data', 'staging');
 // Spawn an import worker as a child process
 // ---------------------------------------------------------------------------
 function spawnImportWorker(clientId, mode, startDate, endDate) {
+  // VCT id_based imports can take 2+ hours for 100K+ orders.
+  // Status updates use order_view per-order and can take even longer.
+  const timeoutMs = mode === 'updates'
+    ? (clientId === 6 ? 18 * 3600000 : 2 * 3600000)   // updates: 18h VCT, 2h others
+    : (clientId === 6 ? 3 * 3600000 : 1 * 3600000);    // imports: 3h VCT, 1h others
+
   return new Promise((resolve, reject) => {
     const maxMem = clientId === 6 ? 512 : 384;
     const child = fork(WORKER_PATH, [
@@ -34,9 +40,26 @@ function spawnImportWorker(clientId, mode, startDate, endDate) {
     });
 
     let result = null;
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        console.error(`[Scheduler] Worker timeout: client ${clientId} mode=${mode} after ${timeoutMs / 3600000}h — killing`);
+        child.kill('SIGTERM');
+        setTimeout(() => { try { child.kill('SIGKILL'); } catch {} }, 5000);
+        reject(new Error(`Worker timed out after ${timeoutMs / 3600000}h`));
+      }
+    }, timeoutMs);
+
     child.on('message', (msg) => { result = msg; });
-    child.on('error', (err) => reject(err));
+    child.on('error', (err) => {
+      if (!settled) { settled = true; clearTimeout(timer); reject(err); }
+    });
     child.on('exit', (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       if (code === 0 && result && result.status === 'success') {
         resolve(result);
       } else {
@@ -204,8 +227,17 @@ async function runClientMergeAndPostSync(importResult, postSyncFn) {
     return;
   }
 
-  // --- Status updates via worker process ---
-  const updatesStart = formatDate(daysAgo(2));
+  // --- Post-sync pipeline FIRST (caches refresh immediately after merge) ---
+  // Status updates only change order_status on older orders and can take 14+ hours
+  // for VCT. Running caches first ensures analytics are fresh right after import.
+  try {
+    await postSyncFn(clientId);
+  } catch (err) {
+    console.error(`[Scheduler] ${label}: post-sync failed:`, err.message);
+  }
+
+  // --- Status updates via worker process (runs AFTER caches are fresh) ---
+  const updatesStart = formatDate(daysAgo(5));
   try {
     const updResult = await spawnImportWorker(clientId, 'updates', updatesStart, endDate);
     console.log(`[Scheduler] ${label}: status updates done — ${updResult.stats?.stagingRows || 0} rows in ${updResult.elapsed}s`);
@@ -218,13 +250,6 @@ async function runClientMergeAndPostSync(importResult, postSyncFn) {
   } catch (err) {
     console.error(`[Scheduler] ${label}: status updates failed:`, err.message);
     // Non-fatal — orders were already merged
-  }
-
-  // --- Post-sync pipeline (in main process, on main DB) ---
-  try {
-    await postSyncFn(clientId);
-  } catch (err) {
-    console.error(`[Scheduler] ${label}: post-sync failed:`, err.message);
   }
 }
 
@@ -292,7 +317,7 @@ function startScheduler() {
     const clientConfigs = [
       { clientId: 1, dayWindow: 7, postSyncFn: kpPostSync },
       { clientId: 2, dayWindow: 7, postSyncFn: kpPostSync },
-      { clientId: 6, dayWindow: 3, postSyncFn: vctPostSync, importMode: 'id_based' },
+      { clientId: 6, dayWindow: 15, postSyncFn: vctPostSync, importMode: 'id_based' },
     ];
 
     // Acquire per-client locks, skip any that are locked
@@ -384,8 +409,42 @@ function startScheduler() {
     }
   });
 
+  // Daily COGS + Ad Spend import from Google Sheets: 8:00 AM UTC (after sync completes)
+  cron.schedule('0 8 * * *', async () => {
+    console.log('[Scheduler] Running daily COGS + Ad Spend import...');
+
+    // COGS import
+    try {
+      await new Promise((resolve, reject) => {
+        const child = fork(path.join(__dirname, '..', '..', 'scripts', 'import-daily-cogs.js'), [], {
+          stdio: ['pipe', 'inherit', 'inherit', 'ipc'],
+        });
+        child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`exit code ${code}`)));
+        child.on('error', reject);
+      });
+      console.log('[Scheduler] COGS import complete.');
+    } catch (err) {
+      console.error('[Scheduler] COGS import failed:', err.message);
+    }
+
+    // Ad Spend import
+    try {
+      await new Promise((resolve, reject) => {
+        const child = fork(path.join(__dirname, '..', '..', 'scripts', 'import-ad-spend.js'), [], {
+          stdio: ['pipe', 'inherit', 'inherit', 'ipc'],
+        });
+        child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`exit code ${code}`)));
+        child.on('error', reject);
+      });
+      console.log('[Scheduler] Ad Spend import complete.');
+    } catch (err) {
+      console.error('[Scheduler] Ad Spend import failed:', err.message);
+    }
+  });
+
   console.log('[Scheduler] Jobs scheduled:');
   console.log('  - Daily sync: clients 1,2,6 at 6:00 AM UTC (parallel import, serialized merge)');
+  console.log('  - Daily COGS + Ad Spend: 8:00 AM UTC');
   console.log('  - Hourly MID check: every hour at :30');
   console.log('  - Implementation check: every 6 hours');
   console.log('  - Weekly AI retrain: Sunday 7:00 AM');
