@@ -2,6 +2,16 @@ const express = require('express');
 const { querySql } = require('../db/connection');
 const router = express.Router();
 
+// Cost rates (VCT-confirmed)
+const COST_RATES = {
+  processing_pct: 0.11,
+  cb_fee: 25,
+  cb_representment: 4,
+  rdr_cdrn_fee: 11.50,
+  rdr_cdrn_bank_fine: 10,
+  ethoca_fee: 17,
+};
+
 // GET /api/pnl/:clientId?start=YYYY-MM-DD&end=YYYY-MM-DD&granularity=daily|weekly|monthly
 router.get('/:clientId', (req, res) => {
   const clientId = parseInt(req.params.clientId, 10);
@@ -13,165 +23,322 @@ router.get('/:clientId', (req, res) => {
     return d.toISOString().slice(0, 10);
   })();
 
-  let dateExpr;
+  // Read from pre-computed cache
+  let periodExpr;
   switch (granularity) {
     case 'weekly':
-      dateExpr = "strftime('%Y-W%W', acquisition_date)";
+      periodExpr = "strftime('%Y-W%W', period)";
       break;
     case 'monthly':
-      dateExpr = "strftime('%Y-%m', acquisition_date)";
+      periodExpr = "strftime('%Y-%m', period)";
       break;
     default:
-      dateExpr = "acquisition_date";
+      periodExpr = "period";
   }
 
-  let adDateExpr;
-  switch (granularity) {
-    case 'weekly':
-      adDateExpr = "strftime('%Y-W%W', date)";
-      break;
-    case 'monthly':
-      adDateExpr = "strftime('%Y-%m', date)";
-      break;
-    default:
-      adDateExpr = "date";
+  const cached = querySql(`
+    SELECT
+      ${periodExpr} as period,
+      SUM(total_orders) as total_orders,
+      SUM(approved_orders) as approved_orders,
+      SUM(declined_orders) as declined_orders,
+      SUM(first_attempt_approved) as first_attempt_approved,
+      SUM(first_attempt_declined) as first_attempt_declined,
+      SUM(approved_initials) as approved_initials,
+      SUM(approved_rebills) as approved_rebills,
+      ROUND(SUM(initial_revenue), 2) as initial_revenue,
+      ROUND(SUM(rebill_revenue), 2) as rebill_revenue,
+      ROUND(SUM(gross_revenue), 2) as gross_revenue,
+      ROUND(SUM(refunds), 2) as refunds,
+      SUM(chargebacks) as chargebacks,
+      ROUND(SUM(cb_revenue_clawback), 2) as cb_revenue_clawback,
+      SUM(cb911_visa) as cb911_visa,
+      SUM(cb911_mc) as cb911_mc,
+      SUM(cb911_total) as cb911_total,
+      SUM(double_hits) as double_hits,
+      ROUND(SUM(ad_spend), 2) as ad_spend,
+      ROUND(SUM(cogs), 2) as cogs,
+      ROUND(SUM(processing), 2) as processing,
+      ROUND(SUM(cb_fees), 2) as cb_fees,
+      ROUND(SUM(cb_representment), 2) as cb_representment,
+      ROUND(SUM(rdr_cdrn_fees), 2) as rdr_cdrn_fees,
+      ROUND(SUM(rdr_cdrn_bank_fines), 2) as rdr_cdrn_bank_fines,
+      ROUND(SUM(ethoca_fees), 2) as ethoca_fees,
+      ROUND(SUM(total_costs), 2) as total_costs,
+      ROUND(SUM(net_profit), 2) as net_profit
+    FROM pnl_daily_cache
+    WHERE client_id = ? AND period BETWEEN ? AND ?
+    GROUP BY ${periodExpr}
+    ORDER BY ${periodExpr}
+  `, [clientId, start, end]);
+
+  if (!cached.length) {
+    return res.json({ rows: [], summary: {}, cost_rates: COST_RATES, start, end, granularity, cached: false });
   }
 
-  // Revenue, orders, approval rates by period
-  const revenue = querySql(`
-    SELECT
-      ${dateExpr} as period,
-      COUNT(*) as total_orders,
-      SUM(CASE WHEN order_status IN (2,6,8) THEN 1 ELSE 0 END) as approved_orders,
-      SUM(CASE WHEN order_status = 7 THEN 1 ELSE 0 END) as declined_orders,
-      ROUND(SUM(CASE WHEN order_status IN (2,6,8) THEN order_total ELSE 0 END), 2) as gross_revenue,
-      ROUND(100.0 * SUM(CASE WHEN order_status IN (2,6,8) THEN 1 ELSE 0 END) /
-        NULLIF(SUM(CASE WHEN order_status IN (2,6,7,8) THEN 1 ELSE 0 END), 0), 2) as approval_rate,
-      SUM(CASE WHEN order_status IN (2,6,8) AND billing_cycle = 0 THEN 1 ELSE 0 END) as approved_initials,
-      SUM(CASE WHEN order_status IN (2,6,8) AND billing_cycle > 0 THEN 1 ELSE 0 END) as approved_rebills,
-      ROUND(SUM(CASE WHEN order_status IN (2,6,8) AND billing_cycle = 0 THEN order_total ELSE 0 END), 2) as initial_revenue,
-      ROUND(SUM(CASE WHEN order_status IN (2,6,8) AND billing_cycle > 0 THEN order_total ELSE 0 END), 2) as rebill_revenue,
-      ROUND(SUM(CASE WHEN order_status IN (2,6,8) THEN COALESCE(amount_refunded_to_date, 0) ELSE 0 END), 2) as total_refunds,
-      SUM(CASE WHEN is_chargeback = 1 THEN 1 ELSE 0 END) as chargebacks
-    FROM orders
-    WHERE client_id = ? AND is_test = 0 AND COALESCE(is_internal_test, 0) = 0
-      AND acquisition_date BETWEEN ? AND ?
-    GROUP BY period
-    ORDER BY period
-  `, [clientId, start, end]);
+  // Add derived fields to each row
+  const rows = cached.map(r => ({
+    ...r,
+    approval_rate: (r.first_attempt_approved + r.first_attempt_declined) > 0
+      ? Math.round(10000 * r.first_attempt_approved / (r.first_attempt_approved + r.first_attempt_declined)) / 100 : 0,
+    margin_pct: r.gross_revenue > 0
+      ? Math.round(10000 * r.net_profit / r.gross_revenue) / 100 : 0,
+    cpa: r.approved_initials > 0
+      ? Math.round(100 * r.ad_spend / r.approved_initials) / 100 : null,
+  }));
 
-  // COGS by period (via product_cogs_match)
-  const cogs = querySql(`
-    SELECT
-      ${dateExpr} as period,
-      ROUND(SUM(CASE WHEN order_status IN (2,6,8) THEN pcm.cogs ELSE 0 END), 2) as total_cogs,
-      COUNT(CASE WHEN order_status IN (2,6,8) AND pcm.cogs IS NOT NULL THEN 1 END) as orders_with_cogs,
-      COUNT(CASE WHEN order_status IN (2,6,8) AND pcm.cogs IS NULL THEN 1 END) as orders_without_cogs
-    FROM orders o
-    LEFT JOIN product_cogs_match pcm
-      ON pcm.client_id = o.client_id AND pcm.product_id = CAST(o.main_product_id AS TEXT)
-    WHERE o.client_id = ? AND o.is_test = 0 AND COALESCE(o.is_internal_test, 0) = 0
-      AND o.acquisition_date BETWEEN ? AND ?
-    GROUP BY period
-    ORDER BY period
-  `, [clientId, start, end]);
+  // Summary
+  const sumKeys = [
+    'total_orders', 'approved_orders', 'declined_orders',
+    'first_attempt_approved', 'first_attempt_declined',
+    'approved_initials', 'approved_rebills',
+    'initial_revenue', 'rebill_revenue', 'gross_revenue',
+    'ad_spend', 'cogs', 'processing', 'refunds',
+    'cb_revenue_clawback', 'chargebacks',
+    'cb_fees', 'cb_representment',
+    'cb911_visa', 'cb911_mc', 'cb911_total',
+    'rdr_cdrn_fees', 'rdr_cdrn_bank_fines', 'ethoca_fees',
+    'double_hits', 'total_costs', 'net_profit',
+  ];
+  const summary = {};
+  for (const k of sumKeys) summary[k] = 0;
+  for (const r of rows) {
+    for (const k of sumKeys) summary[k] += r[k] || 0;
+  }
 
-  // Ad spend by period
-  const adSpend = querySql(`
-    SELECT
-      ${adDateExpr} as period,
-      ROUND(SUM(ad_cost), 2) as total_ad_spend
-    FROM ad_spend_daily_store
-    WHERE date BETWEEN ? AND ?
-    GROUP BY period
-    ORDER BY period
-  `, [start, end]);
+  summary.approval_rate = (summary.first_attempt_approved + summary.first_attempt_declined) > 0
+    ? Math.round(10000 * summary.first_attempt_approved / (summary.first_attempt_approved + summary.first_attempt_declined)) / 100 : 0;
+  summary.margin_pct = summary.gross_revenue > 0
+    ? Math.round(10000 * summary.net_profit / summary.gross_revenue) / 100 : 0;
+  summary.cpa = summary.approved_initials > 0
+    ? Math.round(100 * summary.ad_spend / summary.approved_initials) / 100 : null;
 
-  // Merge into unified P&L rows
-  const cogsMap = new Map(cogs.map(r => [r.period, r]));
-  const adMap = new Map(adSpend.map(r => [r.period, r]));
-
-  const rows = revenue.map(r => {
-    const c = cogsMap.get(r.period) || { total_cogs: 0, orders_with_cogs: 0, orders_without_cogs: 0 };
-    const a = adMap.get(r.period) || { total_ad_spend: 0 };
-
-    const grossRevenue = r.gross_revenue || 0;
-    const netRevenue = grossRevenue - (r.total_refunds || 0);
-    const totalCogs = c.total_cogs || 0;
-    const adCost = a.total_ad_spend || 0;
-    const grossProfit = netRevenue - totalCogs;
-    const netProfit = grossProfit - adCost;
-
-    return {
-      period: r.period,
-      total_orders: r.total_orders,
-      approved_orders: r.approved_orders,
-      declined_orders: r.declined_orders,
-      approval_rate: r.approval_rate,
-      approved_initials: r.approved_initials,
-      approved_rebills: r.approved_rebills,
-      initial_revenue: r.initial_revenue || 0,
-      rebill_revenue: r.rebill_revenue || 0,
-      gross_revenue: grossRevenue,
-      refunds: r.total_refunds || 0,
-      net_revenue: Math.round(netRevenue * 100) / 100,
-      chargebacks: r.chargebacks,
-      cogs: totalCogs,
-      cogs_coverage_pct: r.approved_orders > 0
-        ? Math.round(100 * c.orders_with_cogs / r.approved_orders)
-        : 0,
-      ad_spend: adCost,
-      gross_profit: Math.round(grossProfit * 100) / 100,
-      net_profit: Math.round(netProfit * 100) / 100,
-      margin_pct: netRevenue > 0 ? Math.round(10000 * netProfit / netRevenue) / 100 : 0,
-      cac: r.approved_initials > 0
-        ? Math.round(100 * adCost / r.approved_initials) / 100
-        : null,
-    };
-  });
-
-  // Summary totals
-  const summary = rows.reduce((acc, r) => {
-    acc.total_orders += r.total_orders;
-    acc.approved_orders += r.approved_orders;
-    acc.declined_orders += r.declined_orders;
-    acc.approved_initials += r.approved_initials;
-    acc.approved_rebills += r.approved_rebills;
-    acc.initial_revenue += r.initial_revenue;
-    acc.rebill_revenue += r.rebill_revenue;
-    acc.gross_revenue += r.gross_revenue;
-    acc.refunds += r.refunds;
-    acc.net_revenue += r.net_revenue;
-    acc.chargebacks += r.chargebacks;
-    acc.cogs += r.cogs;
-    acc.ad_spend += r.ad_spend;
-    acc.gross_profit += r.gross_profit;
-    acc.net_profit += r.net_profit;
-    return acc;
-  }, {
-    total_orders: 0, approved_orders: 0, declined_orders: 0,
-    approved_initials: 0, approved_rebills: 0,
-    initial_revenue: 0, rebill_revenue: 0,
-    gross_revenue: 0, refunds: 0, net_revenue: 0,
-    chargebacks: 0, cogs: 0, ad_spend: 0,
-    gross_profit: 0, net_profit: 0,
-  });
-  summary.approval_rate = summary.approved_orders + summary.declined_orders > 0
-    ? Math.round(10000 * summary.approved_orders / (summary.approved_orders + summary.declined_orders)) / 100
-    : 0;
-  summary.margin_pct = summary.net_revenue > 0
-    ? Math.round(10000 * summary.net_profit / summary.net_revenue) / 100
-    : 0;
-  summary.cac = summary.approved_initials > 0
-    ? Math.round(100 * summary.ad_spend / summary.approved_initials) / 100
-    : null;
-
-  // Round summary money fields
-  for (const k of ['initial_revenue', 'rebill_revenue', 'gross_revenue', 'refunds', 'net_revenue', 'cogs', 'ad_spend', 'gross_profit', 'net_profit']) {
+  const moneyKeys = [
+    'initial_revenue', 'rebill_revenue', 'gross_revenue',
+    'ad_spend', 'cogs', 'processing', 'refunds',
+    'cb_revenue_clawback', 'cb_fees', 'cb_representment',
+    'rdr_cdrn_fees', 'rdr_cdrn_bank_fines', 'ethoca_fees',
+    'total_costs', 'net_profit',
+  ];
+  for (const k of moneyKeys) {
     summary[k] = Math.round(summary[k] * 100) / 100;
   }
 
-  res.json({ rows, summary, start, end, granularity });
+  res.json({ rows, summary, cost_rates: COST_RATES, start, end, granularity, cached: true });
+});
+
+// GET /api/pnl/:clientId/approvals?start=YYYY-MM-DD&end=YYYY-MM-DD
+router.get('/:clientId/approvals', (req, res) => {
+  const clientId = parseInt(req.params.clientId, 10);
+  const end = req.query.end || new Date().toISOString().slice(0, 10);
+  const start = req.query.start || (() => {
+    const d = new Date(end);
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  // Daily trend
+  const trend = querySql(`
+    SELECT period, tx_type, total_attempts, first_attempt_approved, first_attempt_declined, approval_rate
+    FROM approval_daily_cache
+    WHERE client_id = ? AND period BETWEEN ? AND ?
+    ORDER BY period
+  `, [clientId, start, end]);
+
+  // Gateway breakdown — aggregate across the date range
+  const gateways = querySql(`
+    SELECT
+      ag.gateway_id,
+      ag.tx_type,
+      SUM(ag.total_attempts) as total_attempts,
+      SUM(ag.first_attempt_approved) as approved,
+      SUM(ag.first_attempt_declined) as declined,
+      ROUND(100.0 * SUM(ag.first_attempt_approved) / NULLIF(SUM(ag.first_attempt_approved) + SUM(ag.first_attempt_declined), 0), 2) as approval_rate
+    FROM approval_gateway_cache ag
+    WHERE ag.client_id = ? AND ag.period BETWEEN ? AND ?
+    GROUP BY ag.gateway_id, ag.tx_type
+    ORDER BY total_attempts DESC
+  `, [clientId, start, end]);
+
+  // Get gateway names
+  const gwNames = {};
+  const gwRows = querySql('SELECT gateway_id, gateway_alias FROM gateways WHERE client_id = ?', [clientId]);
+  for (const g of gwRows) gwNames[g.gateway_id] = g.gateway_alias;
+
+  // Reshape trend into { date, initial_rate, rebill_rate }
+  const trendMap = {};
+  for (const r of trend) {
+    if (!trendMap[r.period]) trendMap[r.period] = { period: r.period };
+    if (r.tx_type === 'initial') {
+      trendMap[r.period].initial_rate = r.approval_rate;
+      trendMap[r.period].initial_attempts = r.total_attempts;
+    } else if (r.tx_type === 'rebill') {
+      trendMap[r.period].rebill_rate = r.approval_rate;
+      trendMap[r.period].rebill_attempts = r.total_attempts;
+    }
+  }
+  const trendRows = Object.values(trendMap).sort((a, b) => a.period.localeCompare(b.period));
+
+  // Reshape gateways into per-gateway objects with initial + rebill rates
+  const gwMap = {};
+  for (const r of gateways) {
+    if (!gwMap[r.gateway_id]) {
+      gwMap[r.gateway_id] = {
+        gateway_id: r.gateway_id,
+        gateway_name: gwNames[r.gateway_id] || `GW ${r.gateway_id}`,
+      };
+    }
+    const gw = gwMap[r.gateway_id];
+    if (r.tx_type === 'initial') {
+      gw.initial_attempts = r.total_attempts;
+      gw.initial_approved = r.approved;
+      gw.initial_rate = r.approval_rate;
+    } else if (r.tx_type === 'rebill') {
+      gw.rebill_attempts = r.total_attempts;
+      gw.rebill_approved = r.approved;
+      gw.rebill_rate = r.approval_rate;
+    }
+  }
+  const gwList = Object.values(gwMap)
+    .map(g => ({
+      ...g,
+      total_attempts: (g.initial_attempts || 0) + (g.rebill_attempts || 0),
+    }))
+    .sort((a, b) => b.total_attempts - a.total_attempts);
+
+  res.json({ trend: trendRows, gateways: gwList, start, end });
+});
+
+// GET /api/pnl/:clientId/cohorts — LTV cohort analysis from cache
+router.get('/:clientId/cohorts', (req, res) => {
+  const clientId = parseInt(req.params.clientId, 10);
+
+  const rows = querySql(`
+    SELECT cohort_month, month_offset, cohort_size, active_customers,
+      revenue, orders, retention_pct, cumulative_ltv
+    FROM cohort_cache
+    WHERE client_id = ?
+    ORDER BY cohort_month, month_offset
+  `, [clientId]);
+
+  if (!rows.length) return res.json({ cohorts: [] });
+
+  // Group by cohort_month
+  const cohortMap = {};
+  for (const r of rows) {
+    if (!cohortMap[r.cohort_month]) {
+      cohortMap[r.cohort_month] = { month: r.cohort_month, size: r.cohort_size, months: [] };
+    }
+    cohortMap[r.cohort_month].months.push({
+      offset: r.month_offset,
+      active: r.active_customers,
+      revenue: r.revenue,
+      orders: r.orders,
+      retention: r.retention_pct,
+      ltv: r.cumulative_ltv,
+    });
+  }
+
+  const cohorts = Object.values(cohortMap).sort((a, b) => a.month.localeCompare(b.month));
+  res.json({ cohorts });
+});
+
+// GET /api/pnl/:clientId/product-lifetime — product lifetime profitability from cache
+router.get('/:clientId/product-lifetime', (req, res) => {
+  const clientId = parseInt(req.params.clientId, 10);
+
+  const products = querySql(`
+    SELECT product_id, product_name, initial_customers, avg_initial_price,
+      cogs_per_unit, customers_with_rebills, rebill_rate,
+      avg_rebill_revenue,
+      ltv_m0, ltv_m1, ltv_m2, ltv_m3, ltv_m4, ltv_m5, ltv_m6, lifetime_revenue,
+      processing_per_cust, refunds_per_cust, chargebacks, cb_rate,
+      cb_cost_per_cust, cb_clawback_per_cust, alerts, alert_cost_per_cust,
+      total_costs_per_cust, lifetime_profit_per_cust,
+      initial_refund_rate, initial_refund_count
+    FROM product_lifetime_cache WHERE client_id = ?
+    ORDER BY initial_customers DESC
+  `, [clientId]);
+
+  res.json({ products });
+});
+
+// GET /api/pnl/:clientId/gateway-drilldown — per-gateway deep view from cache
+router.get('/:clientId/gateway-drilldown', (req, res) => {
+  const clientId = parseInt(req.params.clientId, 10);
+
+  const gateways = querySql(`
+    SELECT gateway_id, gateway_name, tx_type, total_attempts, first_attempt_approved, approved_revenue
+    FROM gateway_drilldown_cache WHERE client_id = ?
+  `, [clientId]);
+
+  const declines = querySql(`
+    SELECT gateway_id, decline_reason, cnt
+    FROM gateway_decline_cache WHERE client_id = ?
+    ORDER BY gateway_id, cnt DESC
+  `, [clientId]);
+
+  // Build decline map
+  const declineMap = {};
+  for (const r of declines) {
+    if (!declineMap[r.gateway_id]) declineMap[r.gateway_id] = [];
+    declineMap[r.gateway_id].push({ reason: r.decline_reason, count: r.cnt });
+  }
+
+  // Reshape per-gateway
+  const gwMap = {};
+  for (const r of gateways) {
+    if (!gwMap[r.gateway_id]) {
+      gwMap[r.gateway_id] = {
+        gateway_id: r.gateway_id,
+        gateway_name: r.gateway_name,
+        decline_reasons: declineMap[r.gateway_id] || [],
+      };
+    }
+    const gw = gwMap[r.gateway_id];
+    if (r.tx_type === 'initial') {
+      gw.initial_attempts = r.total_attempts;
+      gw.initial_approved = r.first_attempt_approved;
+      gw.initial_rate = r.total_attempts > 0 ? Math.round(10000 * r.first_attempt_approved / r.total_attempts) / 100 : 0;
+      gw.initial_revenue = r.approved_revenue;
+    } else {
+      gw.rebill_attempts = r.total_attempts;
+      gw.rebill_approved = r.first_attempt_approved;
+      gw.rebill_rate = r.total_attempts > 0 ? Math.round(10000 * r.first_attempt_approved / r.total_attempts) / 100 : 0;
+      gw.rebill_revenue = r.approved_revenue;
+    }
+  }
+
+  const gwList = Object.values(gwMap)
+    .map(g => ({ ...g, total_attempts: (g.initial_attempts || 0) + (g.rebill_attempts || 0), total_revenue: (g.initial_revenue || 0) + (g.rebill_revenue || 0) }))
+    .sort((a, b) => b.total_attempts - a.total_attempts);
+
+  res.json({ gateways: gwList });
+});
+
+// GET /api/pnl/:clientId/product-pnl — product-level P&L from cache
+router.get('/:clientId/product-pnl', (req, res) => {
+  const clientId = parseInt(req.params.clientId, 10);
+
+  const prodList = querySql(`
+    SELECT product_id, product_name, total_orders, approved_orders,
+      revenue, cogs, margin, margin_pct, approval_rate,
+      initial_orders, rebill_orders, initial_revenue, rebill_revenue
+    FROM product_pnl_cache WHERE client_id = ?
+    ORDER BY revenue DESC
+  `, [clientId]);
+
+  const summary = prodList.reduce((s, p) => {
+    s.total_orders += p.total_orders;
+    s.approved_orders += p.approved_orders;
+    s.revenue += p.revenue;
+    s.cogs += p.cogs;
+    return s;
+  }, { total_orders: 0, approved_orders: 0, revenue: 0, cogs: 0 });
+  summary.margin = Math.round((summary.revenue - summary.cogs) * 100) / 100;
+  summary.margin_pct = summary.revenue > 0 ? Math.round(((summary.revenue - summary.cogs) / summary.revenue) * 10000) / 100 : 0;
+
+  res.json({ products: prodList, summary });
 });
 
 module.exports = router;
