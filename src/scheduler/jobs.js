@@ -294,6 +294,33 @@ async function kpPostSync(clientId) {
 }
 
 async function vctPostSync(clientId) {
+  // Import COGS + Ad Spend before P&L cache refresh so everything is computed once
+  try {
+    await new Promise((resolve, reject) => {
+      const child = fork(path.join(__dirname, '..', '..', 'scripts', 'import-daily-cogs.js'), [], {
+        stdio: ['pipe', 'inherit', 'inherit', 'ipc'],
+      });
+      child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`exit code ${code}`)));
+      child.on('error', reject);
+    });
+    console.log('[Scheduler] COGS import complete.');
+  } catch (err) {
+    console.error('[Scheduler] COGS import failed:', err.message);
+  }
+
+  try {
+    await new Promise((resolve, reject) => {
+      const child = fork(path.join(__dirname, '..', '..', 'scripts', 'import-ad-spend.js'), [], {
+        stdio: ['pipe', 'inherit', 'inherit', 'ipc'],
+      });
+      child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`exit code ${code}`)));
+      child.on('error', reject);
+    });
+    console.log('[Scheduler] Ad Spend import complete.');
+  } catch (err) {
+    console.error('[Scheduler] Ad Spend import failed:', err.message);
+  }
+
   try {
     const result = runVctPostSyncPipeline(clientId);
     console.log(`[Scheduler] VCT post-sync: ${result.classified} classified, ${result.cascadeParsed} cascades parsed`);
@@ -409,51 +436,10 @@ function startScheduler() {
     }
   });
 
-  // Daily COGS + Ad Spend import from Google Sheets: 8:00 AM UTC (after sync completes)
-  cron.schedule('0 8 * * *', async () => {
-    console.log('[Scheduler] Running daily COGS + Ad Spend import...');
-
-    // COGS import
-    try {
-      await new Promise((resolve, reject) => {
-        const child = fork(path.join(__dirname, '..', '..', 'scripts', 'import-daily-cogs.js'), [], {
-          stdio: ['pipe', 'inherit', 'inherit', 'ipc'],
-        });
-        child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`exit code ${code}`)));
-        child.on('error', reject);
-      });
-      console.log('[Scheduler] COGS import complete.');
-    } catch (err) {
-      console.error('[Scheduler] COGS import failed:', err.message);
-    }
-
-    // Ad Spend import
-    try {
-      await new Promise((resolve, reject) => {
-        const child = fork(path.join(__dirname, '..', '..', 'scripts', 'import-ad-spend.js'), [], {
-          stdio: ['pipe', 'inherit', 'inherit', 'ipc'],
-        });
-        child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`exit code ${code}`)));
-        child.on('error', reject);
-      });
-      console.log('[Scheduler] Ad Spend import complete.');
-    } catch (err) {
-      console.error('[Scheduler] Ad Spend import failed:', err.message);
-    }
-
-    // Refresh P&L cache so portal reflects new COGS/ad spend
-    try {
-      const { execSync } = require('child_process');
-      execSync('node scripts/compute-pnl-cache.js --days 90', { cwd: path.join(__dirname, '..', '..'), timeout: 300000 });
-      console.log('[Scheduler] P&L cache refreshed after COGS/Ad Spend import.');
-    } catch (err) {
-      console.error('[Scheduler] P&L cache refresh failed:', err.message);
-    }
-  });
 
   console.log('[Scheduler] Jobs scheduled:');
   console.log('  - Daily sync: clients 1,2,6 at 6:00 AM UTC (parallel import, serialized merge)');
-  console.log('  - Daily COGS + Ad Spend: 8:00 AM UTC');
+  console.log('  - VCT post-sync includes: COGS + Ad Spend import → classify → P&L cache');
   console.log('  - Hourly MID check: every hour at :30');
   console.log('  - Implementation check: every 6 hours');
   console.log('  - Weekly AI retrain: Sunday 7:00 AM');
