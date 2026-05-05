@@ -440,6 +440,15 @@ function startScheduler() {
     } catch (err) {
       console.error('[Scheduler] Ad Spend import failed:', err.message);
     }
+
+    // Refresh P&L cache so portal reflects new COGS/ad spend
+    try {
+      const { execSync } = require('child_process');
+      execSync('node scripts/compute-pnl-cache.js --days 90', { cwd: path.join(__dirname, '..', '..'), timeout: 300000 });
+      console.log('[Scheduler] P&L cache refreshed after COGS/Ad Spend import.');
+    } catch (err) {
+      console.error('[Scheduler] P&L cache refresh failed:', err.message);
+    }
   });
 
   console.log('[Scheduler] Jobs scheduled:');
