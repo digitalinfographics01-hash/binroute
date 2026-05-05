@@ -1036,12 +1036,17 @@ class DataIngestion {
           try {
             const Database = require('better-sqlite3');
             const mainDb = new Database(this._mainDbPath, { readonly: true });
-            const placeholders = dayIds.map(() => '?').join(',');
-            const existingRows = mainDb.prepare(
-              `SELECT order_id FROM orders WHERE client_id = ? AND order_id IN (${placeholders})`
-            ).all(this.clientId, ...dayIds);
+            const existingSet = new Set();
+            // Batch in chunks of 500 to avoid SQLite variable limit (999 max)
+            for (let i = 0; i < dayIds.length; i += 500) {
+              const chunk = dayIds.slice(i, i + 500);
+              const placeholders = chunk.map(() => '?').join(',');
+              const rows = mainDb.prepare(
+                `SELECT order_id FROM orders WHERE client_id = ? AND order_id IN (${placeholders})`
+              ).all(this.clientId, ...chunk);
+              for (const r of rows) existingSet.add(String(r.order_id));
+            }
             mainDb.close();
-            const existingSet = new Set(existingRows.map(r => String(r.order_id)));
             idsToFetch = dayIds.filter(id => !existingSet.has(String(id)));
             if (idsToFetch.length < dayIds.length) {
               log(`    Skipping ${dayIds.length - idsToFetch.length} existing, fetching ${idsToFetch.length} new`);
