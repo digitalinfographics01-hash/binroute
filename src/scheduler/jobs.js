@@ -114,13 +114,24 @@ function preFlightChecks() {
     }
   }
 
-  // WAL checkpoint if WAL is large
+  // WAL checkpoint — keep WAL size under control
   try {
     const walPath = path.join(__dirname, '..', '..', 'data', 'binroute.db-wal');
     if (fs.existsSync(walPath)) {
       const walSize = fs.statSync(walPath).size;
-      if (walSize > 500 * 1024 * 1024) {
-        console.log(`[Scheduler] WAL is ${(walSize / 1024 / 1024).toFixed(0)}MB — running checkpoint...`);
+      const walMB = (walSize / 1024 / 1024).toFixed(0);
+      if (walSize > 100 * 1024 * 1024) {
+        console.log(`[Scheduler] WAL is ${walMB}MB — running TRUNCATE checkpoint...`);
+        try {
+          const { checkpointWalFull } = require('../db/connection');
+          checkpointWalFull();
+          console.log('[Scheduler] WAL truncated successfully.');
+        } catch (err) {
+          console.error(`[Scheduler] WAL TRUNCATE failed (${err.message}), trying PASSIVE...`);
+          try { checkpointWal(); } catch {}
+        }
+      } else if (walSize > 50 * 1024 * 1024) {
+        console.log(`[Scheduler] WAL is ${walMB}MB — running PASSIVE checkpoint...`);
         try { checkpointWal(); } catch {}
       }
     }
@@ -222,6 +233,8 @@ async function runClientMergeAndPostSync(importResult, postSyncFn) {
   try {
     const mergeResult = mergeStagingToMain(txResult.stagingPath, clientId);
     console.log(`[Scheduler] ${label}: merge done — ${mergeResult.inserted} new, ${mergeResult.updated} updated in ${mergeResult.elapsed}s`);
+    // Checkpoint WAL after merge (large write)
+    try { checkpointWal(); } catch {}
   } catch (err) {
     console.error(`[Scheduler] ${label}: merge FAILED — ${err.message}. Staging file preserved for debugging.`);
     return;
@@ -393,8 +406,21 @@ function startScheduler() {
     console.log('[Scheduler] === DAILY SYNC COMPLETE ===');
   });
 
-  // Hourly MID status check (at :30 to avoid colliding with daily sync at :00)
+  // Hourly MID status check + WAL guard (at :30 to avoid colliding with daily sync at :00)
   cron.schedule('30 * * * *', async () => {
+    // WAL size guard — prevent runaway growth between daily syncs
+    try {
+      const walPath = path.join(__dirname, '..', '..', 'data', 'binroute.db-wal');
+      if (fs.existsSync(walPath)) {
+        const walSize = fs.statSync(walPath).size;
+        if (walSize > 200 * 1024 * 1024) {
+          const walMB = (walSize / 1024 / 1024).toFixed(0);
+          console.warn(`[Scheduler] WAL guard: ${walMB}MB — forcing PASSIVE checkpoint`);
+          try { checkpointWal(); } catch {}
+        }
+      }
+    } catch {}
+
     console.log('[Scheduler] Running hourly MID status check...');
     const clients = querySql('SELECT id FROM clients');
 
