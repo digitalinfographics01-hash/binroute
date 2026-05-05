@@ -1196,7 +1196,7 @@ class DataIngestion {
         campaign_id: 'all',
         results_per_page: 5000,
         page,
-      });
+      }, 5, { timeout: 300000 });
 
       if (result.response_code !== '100' || !result.order_id) break;
 

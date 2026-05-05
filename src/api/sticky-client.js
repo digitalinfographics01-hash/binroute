@@ -75,7 +75,7 @@ class StickyClient {
     this.rateLimiter = new RateLimiter(120, 10);
   }
 
-  async _post(method, params = {}, retries = 5) {
+  async _post(method, params = {}, retries = 5, options = {}) {
     const url = `https://${this.baseUrl}/api/v1/${method}`;
     const formData = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
@@ -84,6 +84,8 @@ class StickyClient {
       }
     }
 
+    const timeoutMs = options.timeout || 120000;
+
     for (let attempt = 1; attempt <= retries; attempt++) {
       await this.rateLimiter.acquire();
 
@@ -91,7 +93,7 @@ class StickyClient {
         const response = await axios.post(url, formData.toString(), {
           auth: this.auth,
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          timeout: 120000,
+          timeout: timeoutMs,
         });
         return response.data;
       } catch (err) {
