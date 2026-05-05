@@ -1030,10 +1030,37 @@ class DataIngestion {
         // Track existing count before save to compute new vs updated
         const dayExisting = this._getDBCountForDay(day);
 
+        // Step 1b: Filter out IDs that already exist in main DB (skip re-downloading)
+        let idsToFetch = dayIds;
+        if (this._mainDbPath) {
+          try {
+            const Database = require('better-sqlite3');
+            const mainDb = new Database(this._mainDbPath, { readonly: true });
+            const placeholders = dayIds.map(() => '?').join(',');
+            const existingRows = mainDb.prepare(
+              `SELECT order_id FROM orders WHERE client_id = ? AND order_id IN (${placeholders})`
+            ).all(this.clientId, ...dayIds);
+            mainDb.close();
+            const existingSet = new Set(existingRows.map(r => String(r.order_id)));
+            idsToFetch = dayIds.filter(id => !existingSet.has(String(id)));
+            if (idsToFetch.length < dayIds.length) {
+              log(`    Skipping ${dayIds.length - idsToFetch.length} existing, fetching ${idsToFetch.length} new`);
+            }
+          } catch (err) {
+            log(`    Main DB filter failed (${err.message}), fetching all`);
+          }
+        }
+
+        if (idsToFetch.length === 0) {
+          log(`  ${day}: all ${dayIds.length} orders already in DB, skipped`);
+          this._logImportDay(runId, day, dayTotal, 0, 0, 0, 0);
+          continue;
+        }
+
         // Step 2: Batch order_view — 50 IDs per call, N concurrent
         const batches = [];
-        for (let i = 0; i < dayIds.length; i += BATCH_SIZE) {
-          batches.push(dayIds.slice(i, i + BATCH_SIZE));
+        for (let i = 0; i < idsToFetch.length; i += BATCH_SIZE) {
+          batches.push(idsToFetch.slice(i, i + BATCH_SIZE));
         }
 
         let daySaved = 0;

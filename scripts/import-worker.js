@@ -108,6 +108,7 @@ async function main() {
 
   // Build ingestion instance pointing at staging DB
   const ingestion = new DataIngestion(clientId, { dbHelpers: stagingHelpers });
+  ingestion._mainDbPath = DB_PATH; // For filtering existing IDs during id_based import
   ingestion.initWithCredentials(creds);
 
   try {
