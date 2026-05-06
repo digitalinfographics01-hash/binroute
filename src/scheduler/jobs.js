@@ -345,65 +345,77 @@ async function vctPostSync(clientId) {
 // ---------------------------------------------------------------------------
 // Schedule all recurring jobs
 // ---------------------------------------------------------------------------
+async function runDailySync(clientConfigs) {
+  const lockedClients = [];
+  for (const cfg of clientConfigs) {
+    if (acquireSyncLock(cfg.clientId)) {
+      lockedClients.push(cfg);
+    }
+  }
+
+  try {
+    // Phase 1: Imports in parallel (each is its own process + staging DB)
+    const importPromises = lockedClients.map(cfg =>
+      runClientImport(cfg.clientId, cfg.dayWindow, { importMode: cfg.importMode })
+        .catch(err => {
+          console.error(`[Scheduler] Client ${cfg.clientId}: import crashed — ${err.message}`);
+          return null;
+        })
+    );
+    const importResults = await Promise.allSettled(importPromises);
+
+    // Phase 2: Merges + post-sync SEQUENTIAL (one at a time, no DB contention)
+    for (let i = 0; i < lockedClients.length; i++) {
+      const cfg = lockedClients[i];
+      const settled = importResults[i];
+      const result = settled.status === 'fulfilled' ? settled.value : null;
+
+      if (!result) {
+        console.error(`[Scheduler] Client ${cfg.clientId}: skipping merge (import failed)`);
+        continue;
+      }
+
+      try {
+        await runClientMergeAndPostSync(result, cfg.postSyncFn);
+      } catch (err) {
+        console.error(`[Scheduler] Client ${cfg.clientId}: merge/post-sync crashed — ${err.message}`);
+      }
+    }
+  } finally {
+    for (const cfg of lockedClients) {
+      releaseSyncLock(cfg.clientId);
+    }
+  }
+}
+
 function startScheduler() {
   console.log('[Scheduler] Starting scheduled jobs...');
 
-  // Daily sync — imports in parallel (isolated workers), merges+post-sync sequential
+  // Daily sync — KP clients at 6 AM, VCT at 7 AM (separated to avoid memory pressure)
   cron.schedule('0 6 * * *', async () => {
-    console.log('[Scheduler] === DAILY SYNC START ===');
+    console.log('[Scheduler] === DAILY SYNC START (KP clients) ===');
     preFlightChecks();
 
-    // Define client configs
     const clientConfigs = [
       { clientId: 1, dayWindow: 7, postSyncFn: kpPostSync },
       { clientId: 2, dayWindow: 7, postSyncFn: kpPostSync },
+    ];
+
+    await runDailySync(clientConfigs);
+    console.log('[Scheduler] === DAILY SYNC COMPLETE (KP clients) ===');
+  });
+
+  // VCT daily sync — 7 AM UTC (after KP clients finish, avoids memory contention)
+  cron.schedule('0 7 * * *', async () => {
+    console.log('[Scheduler] === DAILY SYNC START (VCT) ===');
+    preFlightChecks();
+
+    const clientConfigs = [
       { clientId: 6, dayWindow: 15, postSyncFn: vctPostSync, importMode: 'id_based' },
     ];
 
-    // Acquire per-client locks, skip any that are locked
-    const lockedClients = [];
-    for (const cfg of clientConfigs) {
-      if (acquireSyncLock(cfg.clientId)) {
-        lockedClients.push(cfg);
-      }
-    }
-
-    try {
-      // Phase 1: Imports in parallel (each is its own process + staging DB)
-      const importPromises = lockedClients.map(cfg =>
-        runClientImport(cfg.clientId, cfg.dayWindow, { importMode: cfg.importMode })
-          .catch(err => {
-            console.error(`[Scheduler] Client ${cfg.clientId}: import crashed — ${err.message}`);
-            return null;
-          })
-      );
-      const importResults = await Promise.allSettled(importPromises);
-
-      // Phase 2: Merges + post-sync SEQUENTIAL (one at a time, no DB contention)
-      for (let i = 0; i < lockedClients.length; i++) {
-        const cfg = lockedClients[i];
-        const settled = importResults[i];
-        const result = settled.status === 'fulfilled' ? settled.value : null;
-
-        if (!result) {
-          console.error(`[Scheduler] Client ${cfg.clientId}: skipping merge (import failed)`);
-          continue;
-        }
-
-        try {
-          await runClientMergeAndPostSync(result, cfg.postSyncFn);
-        } catch (err) {
-          console.error(`[Scheduler] Client ${cfg.clientId}: merge/post-sync crashed — ${err.message}`);
-        }
-      }
-    } finally {
-      // Always release all locks
-      for (const cfg of lockedClients) {
-        releaseSyncLock(cfg.clientId);
-      }
-    }
-
-    console.log('[Scheduler] === DAILY SYNC COMPLETE ===');
+    await runDailySync(clientConfigs);
+    console.log('[Scheduler] === DAILY SYNC COMPLETE (VCT) ===');
   });
 
   // Hourly MID status check + WAL guard (at :30 to avoid colliding with daily sync at :00)
@@ -464,7 +476,8 @@ function startScheduler() {
 
 
   console.log('[Scheduler] Jobs scheduled:');
-  console.log('  - Daily sync: clients 1,2,6 at 6:00 AM UTC (parallel import, serialized merge)');
+  console.log('  - Daily sync: clients 1,2 at 6:00 AM UTC');
+  console.log('  - Daily sync: client 6 (VCT) at 7:00 AM UTC');
   console.log('  - VCT post-sync includes: COGS + Ad Spend import → classify → P&L cache');
   console.log('  - Hourly MID check: every hour at :30');
   console.log('  - Implementation check: every 6 hours');
