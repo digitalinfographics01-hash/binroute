@@ -19,6 +19,7 @@ const { getDb, checkpointWal } = require('./connection');
 const {
   INSERT_COLUMNS_SQL, ON_CONFLICT_SET_SQL,
   MERGE_COLUMNS, MERGE_COLUMNS_SQL, MERGE_ON_CONFLICT_SET_SQL,
+  VCT_MERGE_ON_CONFLICT_SET_SQL,
 } = require('./order-columns');
 
 const BATCH_SIZE = 5000;
@@ -150,7 +151,13 @@ function mergeStagingToMain(stagingPath, clientId) {
       useExtendedMerge = false;
     }
 
-    if (useExtendedMerge) {
+    if (useExtendedMerge && clientId === 6) {
+      // VCT: derived columns completely excluded from ON CONFLICT UPDATE.
+      // Classification happens in a separate phase on the main DB.
+      columnsSQL = MERGE_COLUMNS_SQL;
+      conflictSQL = VCT_MERGE_ON_CONFLICT_SET_SQL;
+      console.log(`[staging-merge] Merging ${stagingCount} rows for client ${clientId} (VCT raw merge, derived columns protected)...`);
+    } else if (useExtendedMerge) {
       columnsSQL = MERGE_COLUMNS_SQL;
       conflictSQL = MERGE_ON_CONFLICT_SET_SQL;
       console.log(`[staging-merge] Merging ${stagingCount} rows for client ${clientId} (140-column merge, 6 derived columns included)...`);

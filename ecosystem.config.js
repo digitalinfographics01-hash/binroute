@@ -20,7 +20,7 @@ module.exports = {
         PORT: 3001,
         NODE_ENV: 'production',
       },
-      max_memory_restart: '512M',
+      max_memory_restart: '700M',
       restart_delay: 2000,
     },
     {

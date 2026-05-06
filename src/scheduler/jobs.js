@@ -388,6 +388,75 @@ async function runDailySync(clientConfigs) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// VCT daily sync — forked child process with crash recovery
+// ---------------------------------------------------------------------------
+const VCT_SYNC_PATH = path.join(__dirname, '..', '..', 'scripts', 'vct-daily-sync.js');
+const VCT_PROGRESS_PATH = path.join(__dirname, '..', '..', 'data', 'vct-sync-progress.json');
+const VCT_SYNC_TIMEOUT = 4 * 3600000; // 4 hours
+
+function forkVctDailySync() {
+  console.log('[Scheduler] Forking VCT daily sync...');
+
+  const child = fork(VCT_SYNC_PATH, [], {
+    execArgv: ['--max-old-space-size=1024'],
+    stdio: ['pipe', 'inherit', 'inherit', 'ipc'],
+  });
+
+  let settled = false;
+
+  const timer = setTimeout(() => {
+    if (!settled) {
+      settled = true;
+      console.error('[Scheduler] VCT sync timeout after 4h — killing');
+      child.kill('SIGTERM');
+      setTimeout(() => { try { child.kill('SIGKILL'); } catch {} }, 5000);
+    }
+  }, VCT_SYNC_TIMEOUT);
+
+  child.on('message', (msg) => {
+    if (msg.status === 'success') {
+      console.log(`[Scheduler] VCT sync complete in ${msg.elapsed}s`);
+    } else if (msg.status === 'error') {
+      console.error(`[Scheduler] VCT sync failed: ${msg.error}`);
+    }
+  });
+
+  child.on('exit', (code) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    if (code === 0) {
+      console.log('[Scheduler] VCT sync process exited cleanly');
+    } else {
+      console.error(`[Scheduler] VCT sync process exited with code ${code}`);
+    }
+  });
+
+  child.on('error', (err) => {
+    if (!settled) {
+      settled = true;
+      clearTimeout(timer);
+      console.error(`[Scheduler] VCT sync fork error: ${err.message}`);
+    }
+  });
+}
+
+function checkVctSyncRecovery() {
+  try {
+    if (!fs.existsSync(VCT_PROGRESS_PATH)) return;
+    const progress = JSON.parse(fs.readFileSync(VCT_PROGRESS_PATH, 'utf8'));
+    const today = new Date().toISOString().slice(0, 10);
+
+    if (progress.date === today && progress.phase !== 'complete') {
+      console.log(`[Scheduler] VCT sync incomplete (stopped at: ${progress.phase}, attempt ${progress.attempt || '?'}). Retrying in 2 minutes...`);
+      setTimeout(() => forkVctDailySync(), 120000);
+    }
+  } catch (err) {
+    console.error(`[Scheduler] VCT recovery check failed: ${err.message}`);
+  }
+}
+
 function startScheduler() {
   console.log('[Scheduler] Starting scheduled jobs...');
 
@@ -405,18 +474,13 @@ function startScheduler() {
     console.log('[Scheduler] === DAILY SYNC COMPLETE (KP clients) ===');
   });
 
-  // VCT daily sync — 7 AM UTC (after KP clients finish, avoids memory contention)
-  cron.schedule('0 7 * * *', async () => {
-    console.log('[Scheduler] === DAILY SYNC START (VCT) ===');
-    preFlightChecks();
-
-    const clientConfigs = [
-      { clientId: 6, dayWindow: 15, postSyncFn: vctPostSync, importMode: 'id_based' },
-    ];
-
-    await runDailySync(clientConfigs);
-    console.log('[Scheduler] === DAILY SYNC COMPLETE (VCT) ===');
+  // VCT daily sync — 7 AM UTC, runs as isolated child process (1GB heap)
+  cron.schedule('0 7 * * *', () => {
+    forkVctDailySync();
   });
+
+  // Auto-retry: if VCT sync didn't complete today, retry 2 minutes after startup
+  checkVctSyncRecovery();
 
   // Hourly MID status check + WAL guard (at :30 to avoid colliding with daily sync at :00)
   cron.schedule('30 * * * *', async () => {

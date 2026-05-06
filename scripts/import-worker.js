@@ -31,8 +31,9 @@ function parseArgs() {
     const m = arg.match(/^--(\w+)=(.+)$/);
     if (m) args[m[1]] = m[2];
   }
+  const skipClassify = process.argv.includes('--skip-classify');
   if (!args.client || !args.mode || !args.start || !args.end) {
-    console.error('Usage: --client=ID --mode=transactions|updates --start=MM/DD/YYYY --end=MM/DD/YYYY');
+    console.error('Usage: --client=ID --mode=transactions|updates --start=MM/DD/YYYY --end=MM/DD/YYYY [--skip-classify]');
     process.exit(2);
   }
   return {
@@ -40,6 +41,7 @@ function parseArgs() {
     mode: args.mode,
     startDate: args.start,
     endDate: args.end,
+    skipClassify,
   };
 }
 
@@ -86,10 +88,10 @@ function sendResult(result) {
 // Main
 // ---------------------------------------------------------------------------
 async function main() {
-  const { clientId, mode, startDate, endDate } = parseArgs();
+  const { clientId, mode, startDate, endDate, skipClassify } = parseArgs();
   const startTime = Date.now();
 
-  console.log(`[import-worker] Client ${clientId}, mode=${mode}, ${startDate} to ${endDate}`);
+  console.log(`[import-worker] Client ${clientId}, mode=${mode}, ${startDate} to ${endDate}${skipClassify ? ' (skip-classify)' : ''}`);
 
   // Pre-flight
   checkDiskSpace();
@@ -132,19 +134,26 @@ async function main() {
     };
 
     // --- Staging post-sync: classify on isolated DB before merge ---
+    // VCT (--skip-classify): staging stays purely raw. Classification happens
+    // on the main DB in Phase 4 of vct-daily-sync.js with full context.
     let stagingPostSync = null;
-    try {
-      const { runStagingPostSync } = require('../src/pipeline/staging-post-sync');
-      stagingPostSync = runStagingPostSync(stagingHelpers, clientId);
-    } catch (err) {
-      console.error(`[import-worker] Staging post-sync failed (non-fatal): ${err.message}`);
-      stagingPostSync = {
-        success: false,
-        fallbackRequired: true,
-        classified: 0, rolesSet: 0, cascadesParsed: 0, gatewaysSet: 0,
-        errors: ['staging_post_sync_crash'],
-        errorMessage: err.message,
-      };
+    if (skipClassify) {
+      console.log('[import-worker] Skipping staging classification (--skip-classify)');
+      stagingPostSync = { skipped: true };
+    } else {
+      try {
+        const { runStagingPostSync } = require('../src/pipeline/staging-post-sync');
+        stagingPostSync = runStagingPostSync(stagingHelpers, clientId);
+      } catch (err) {
+        console.error(`[import-worker] Staging post-sync failed (non-fatal): ${err.message}`);
+        stagingPostSync = {
+          success: false,
+          fallbackRequired: true,
+          classified: 0, rolesSet: 0, cascadesParsed: 0, gatewaysSet: 0,
+          errors: ['staging_post_sync_crash'],
+          errorMessage: err.message,
+        };
+      }
     }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);

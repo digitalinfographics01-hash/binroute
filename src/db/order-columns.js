@@ -115,6 +115,12 @@ const MERGE_ON_CONFLICT_SET_SQL = ON_CONFLICT_SET_SQL + ', ' +
     .map(c => `${c}=COALESCE(excluded.${c}, orders.${c})`)
     .join(', ');
 
+// VCT (client 6): derived columns are completely excluded from ON CONFLICT
+// UPDATE. They are never overwritten by a merge — classification happens
+// separately on the main DB with full context (Phase 4 of vct-daily-sync).
+// INSERT still includes all 140 columns (new rows get NULL derived values).
+const VCT_MERGE_ON_CONFLICT_SET_SQL = ON_CONFLICT_SET_SQL;
+
 module.exports = {
   INSERT_COLUMNS,
   ON_CONFLICT_SET_COLUMNS,
@@ -125,4 +131,5 @@ module.exports = {
   ON_CONFLICT_SET_SQL,
   MERGE_COLUMNS_SQL,
   MERGE_ON_CONFLICT_SET_SQL,
+  VCT_MERGE_ON_CONFLICT_SET_SQL,
 };
