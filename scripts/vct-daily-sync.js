@@ -314,21 +314,37 @@ async function phase3Updates() {
   }
 
   log('=== Phase 3: Status updates ===');
-  const startDate = formatDate(daysAgo(UPDATE_DAY_WINDOW));
-  const endDate = formatDate(new Date());
 
-  const result = await spawnImportWorker('updates', startDate, endDate);
-  const rows = result.stats?.stagingRows || 0;
-  log(`Updates done: ${rows} rows in ${result.elapsed}s`);
+  // VCT needs 1-day windows — order_find_updated times out with multi-day ranges
+  let totalRows = 0;
+  const totalStart = Date.now();
 
-  if (rows > 0) {
-    log('Merging status updates into main DB...');
-    const mergeResult = mergeStaging(result.stagingPath);
-    log(`Merge: ${mergeResult.inserted} new, ${mergeResult.updated} updated in ${mergeResult.elapsed}s`);
-    walCheckpoint();
+  for (let d = 1; d <= UPDATE_DAY_WINDOW; d++) {
+    const dayDate = daysAgo(d);
+    const dayStr = formatDate(dayDate);
+    log(`  Status updates for ${dayStr}...`);
+
+    try {
+      const result = await spawnImportWorker('updates', dayStr, dayStr);
+      const rows = result.stats?.stagingRows || 0;
+      totalRows += rows;
+
+      if (rows > 0) {
+        const mergeResult = mergeStaging(result.stagingPath);
+        log(`  ${dayStr}: ${rows} rows, merged ${mergeResult.inserted} new + ${mergeResult.updated} updated in ${mergeResult.elapsed}s`);
+        walCheckpoint();
+      } else {
+        log(`  ${dayStr}: 0 updated orders`);
+      }
+    } catch (err) {
+      log(`  ${dayStr}: FAILED — ${err.message} (continuing)`);
+    }
   }
 
-  writeProgress('updates', { rows, elapsed: result.elapsed });
+  const totalElapsed = ((Date.now() - totalStart) / 1000).toFixed(1);
+  log(`Updates done: ${totalRows} rows across ${UPDATE_DAY_WINDOW} days in ${totalElapsed}s`);
+
+  writeProgress('updates', { rows: totalRows, elapsed: parseFloat(totalElapsed) });
   log('Phase 3 complete');
 }
 
