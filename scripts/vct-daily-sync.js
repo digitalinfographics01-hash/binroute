@@ -153,7 +153,7 @@ async function phase1Preflight() {
     log('Creating DB backup...');
     const sourceDb = new Database(DB_PATH, { readonly: true });
     try {
-      sourceDb.backup(backupPath);
+      await sourceDb.backup(backupPath);
       log(`Backup created: ${backupPath}`);
 
       // Verify backup integrity
