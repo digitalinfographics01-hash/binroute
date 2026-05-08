@@ -766,7 +766,7 @@ class DataIngestion {
         parent_id=excluded.parent_id, child_id=excluded.child_id, is_in_trial=excluded.is_in_trial,
         order_subtotal=excluded.order_subtotal, shipping_total=excluded.shipping_total, tax_total=excluded.tax_total,
         c1=excluded.c1, c2=excluded.c2, c3=excluded.c3, affid=excluded.affid,
-        time_stamp=excluded.time_stamp, is_test_cc=excluded.is_test_cc, retry_date=excluded.retry_date,
+        time_stamp=excluded.time_stamp, is_test_cc=excluded.is_test_cc, is_test=excluded.is_test_cc, retry_date=excluded.retry_date,
         tracking_number=excluded.tracking_number, shipping_date=excluded.shipping_date,
         billing_first_name=excluded.billing_first_name, billing_last_name=excluded.billing_last_name,
         billing_street_address=excluded.billing_street_address, billing_street_address2=excluded.billing_street_address2,
