@@ -117,6 +117,21 @@ async function runPostSyncPipeline(clientId) {
     return n;
   });
 
+  // Step 4b: Promote rebill attempt >= 2 to salvage roles
+  safeStep('Step 4b (salvage roles)', () => {
+    const n = runSql(`UPDATE orders SET derived_product_role =
+      CASE derived_product_role
+        WHEN 'main_rebill' THEN 'main_rebill_salvage'
+        WHEN 'upsell_rebill' THEN 'upsell_rebill_salvage'
+      END
+      WHERE client_id = ? AND derived_attempt >= 2
+        AND derived_product_role IN ('main_rebill', 'upsell_rebill')`,
+      [clientId]);
+    saveDb();
+    const changed = n?.changes || 0;
+    if (changed > 0) console.log(`[PostSync] Step 4b: Promoted ${changed} rebill orders to salvage`);
+  });
+
   // Step 5: Extract transaction features for AI training
   const featuresExtracted = safeStep('Step 5 (tx features)', () => {
     const { extractFeatures } = require('../analytics/feature-extraction');
