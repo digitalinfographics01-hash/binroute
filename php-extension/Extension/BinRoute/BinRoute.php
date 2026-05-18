@@ -318,6 +318,11 @@ SCRIPT;
         $confidence = is_numeric( $confidenceRaw ) ? (float) $confidenceRaw : null;
         $reason    = (string) Session::get( "extensions.BinRoute.reason", "" );
         $latencyMs = (int)    Session::get( "extensions.BinRoute.latency_ms", 0 );
+        $expId     = Session::get( "extensions.BinRoute.experiment_id", "" );
+        $variant   = (string) Session::get( "extensions.BinRoute.experiment_variant", "none" );
+        $selBy     = (string) Session::get( "extensions.BinRoute.selected_by", "beast" );
+        $wouldForce = Session::get( "extensions.BinRoute.would_force_gateway" ) ? 1 : 0;
+        $forceReq   = Session::get( "extensions.BinRoute.force_gateway" ) ? 1 : 0;
 
         if( empty( $shadowId ) )
         {
@@ -329,13 +334,18 @@ SCRIPT;
         // Keep the "id=<uuid>" portion verbatim — other fields are for
         // human readability only.
         $marker = sprintf(
-            'BinRoute_shadow: id=%s rec_gw=%d rec_proc=%s conf=%s reason=%s lat=%d',
+            'BinRoute_shadow: id=%s rec_gw=%d rec_proc=%s conf=%s reason=%s lat=%d exp=%s var=%s selected_by=%s would_force=%d force_requested=%d',
             $shadowId,
             $gatewayId,
             $processor,
             $confidence !== null ? number_format( $confidence, 4, '.', '' ) : 'na',
             $reason !== '' ? $reason : 'na',
-            $latencyMs
+            $latencyMs,
+            $expId !== '' ? $expId : 'na',
+            $variant,
+            $selBy,
+            $wouldForce,
+            $forceReq
         );
 
         $notes = CrmPayload::has( "customNotes" )
@@ -343,8 +353,17 @@ SCRIPT;
         $notes .= $marker;
         CrmPayload::set( "customNotes", $notes );
 
-        // DO NOT set forceGatewayId — Beast is still in charge of actual
-        // routing in Stage 0. Shadow mode is observe-only.
+        // --- Release 2: Conditional forceGatewayId ---
+        // When LIVE_FORCE_GATEWAY_ENABLED is set on the server and the API
+        // returns force_gateway=true (treatment group), override Beast's routing.
+        // Release 1: force_gateway is always false from the API, so this never fires.
+        $forceGateway = Session::get( "extensions.BinRoute.force_gateway" );
+        if( ($forceGateway === true || $forceGateway === 1 || $forceGateway === '1')
+            && $variant === 'treatment'
+            && $gatewayId > 0 )
+        {
+            CrmPayload::set( 'forceGatewayId', $gatewayId );
+        }
     }
 
     // -----------------------------------------------------------------------

@@ -43,6 +43,85 @@ function isSixDigitBin(s) {
   return typeof s === 'string' && /^\d{6}$/.test(s);
 }
 
+// ---------------------------------------------------------------------------
+// A/B Experiment — deterministic bucketing + assignment
+// ---------------------------------------------------------------------------
+
+function stableBucket(input, modulo = 10000) {
+  const hash = crypto.createHash('sha256').update(String(input)).digest('hex');
+  return parseInt(hash.slice(0, 8), 16) % modulo;
+}
+
+function assignExperiment({ clientId, emailHash, pickedGatewayId, reason }) {
+  const assignment = {
+    experimentId: null,
+    experimentVariant: 'none',
+    selectedBy: 'beast',
+    experimentBucket: null,
+    experimentSkipReason: null,
+    wouldForceGateway: 0,
+    forceGatewayRequested: 0,
+    forceGatewayResult: 'not_treatment',
+    experimentAssignmentKey: null,
+  };
+
+  if (process.env.EXPERIMENT_KILL_SWITCH === '1') {
+    assignment.experimentSkipReason = 'kill_switch';
+    return assignment;
+  }
+  if (pickedGatewayId == null || reason === 'no_candidates') {
+    assignment.experimentSkipReason = 'no_candidates';
+    return assignment;
+  }
+
+  let activeExp;
+  try {
+    activeExp = queryOneSql(
+      `SELECT id, traffic_pct, treatment_pct FROM experiments
+       WHERE client_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1`,
+      [clientId]
+    );
+  } catch (err) {
+    console.error('[api/route] experiment lookup failed:', err.message);
+    assignment.experimentSkipReason = 'assignment_error';
+    return assignment;
+  }
+
+  if (!activeExp) {
+    assignment.experimentSkipReason = 'no_active_experiment';
+    return assignment;
+  }
+
+  assignment.experimentId = activeExp.id;
+
+  const stableKey = [activeExp.id, clientId, emailHash || 'no_customer'].join(':');
+  assignment.experimentAssignmentKey = crypto.createHash('sha256').update(stableKey).digest('hex').slice(0, 16);
+
+  const bucket = stableBucket(stableKey);
+  assignment.experimentBucket = bucket;
+
+  const trafficLimit = Math.round(Number(activeExp.traffic_pct || 0) * 100);
+  if (bucket >= trafficLimit) {
+    assignment.experimentSkipReason = 'traffic_rollout_none';
+    return assignment;
+  }
+
+  const treatmentLimit = Math.round(trafficLimit * (Number(activeExp.treatment_pct || 0) / 100));
+  if (bucket < treatmentLimit) {
+    assignment.experimentVariant = 'treatment';
+    assignment.selectedBy = 'ai';
+    assignment.wouldForceGateway = 1;
+    assignment.forceGatewayRequested = 0;  // Release 1: never force
+    assignment.forceGatewayResult = 'not_enabled_release_1';
+  } else {
+    assignment.experimentVariant = 'control';
+    assignment.selectedBy = 'beast';
+    assignment.forceGatewayResult = 'not_requested';
+  }
+
+  return assignment;
+}
+
 /**
  * Build the lookup map keyed by processor_name for each candidate.
  * Returns { processorByName, entriesByName } where entriesByName holds the raw
@@ -208,19 +287,43 @@ router.post('/', async (req, res) => {
   // Score EACH eligible gateway individually. Same processor but different
   // acquiring_bank / mcc_code / mid_age_days can yield different AI scores.
   const now = new Date();
+  // Find lookup's best rate for computing per-candidate lift
+  let lookupBestRateForDaemon = -Infinity;
+  for (const g of eligibleGateways) {
+    const lk = lookupForProc(canonProc(g.processor_name));
+    const rate = lk && typeof lk.approval_rate === 'number' ? lk.approval_rate : null;
+    if (rate != null && rate > lookupBestRateForDaemon) lookupBestRateForDaemon = rate;
+  }
+
   const daemonCandidates = eligibleGateways.map(g => {
     const createdAt = g.gateway_created ? new Date(g.gateway_created) : null;
     const midAgeDays = createdAt
       ? Math.max(0, Math.floor((now - createdAt) / (1000 * 60 * 60 * 24)))
       : null;
+    const pc = canonProc(g.processor_name);
+    const lk = lookupForProc(pc);
+    const lkRate = lk && typeof lk.approval_rate === 'number' ? lk.approval_rate : null;
+    const lkSample = lk && typeof lk.sample_size === 'number' ? lk.sample_size : 0;
+    let lkTier = 0;
+    if (lkSample >= 100) lkTier = 3;
+    else if (lkSample >= 30) lkTier = 2;
+    else if (lkSample > 0) lkTier = 1;
+    const isLookupPick = (lkRate != null && lookupBestRateForDaemon > -Infinity && Math.abs(lkRate - lookupBestRateForDaemon) < 0.001) ? 1 : 0;
+    const liftVsLookup = (lkRate != null && lookupBestRateForDaemon > -Infinity) ? (lkRate - lookupBestRateForDaemon) * 100 : 0;
+
     return {
       gateway_id: g.gateway_id,
-      // send raw case — matches training data seen by the model's encoder
       processor_name: g.processor_name,
       acquiring_bank: g.bank_name,
       mcc_code: g.mcc_code,
       mid_age_days: midAgeDays,
       is_warming_up: g.is_warming_up ? 1 : 0,
+      // V2 lookup features for daemon
+      lookup_rate: lkRate,
+      lookup_sample: lkSample,
+      lookup_confidence_tier: lkTier,
+      is_lookup_pick: isLookupPick,
+      lift_vs_lookup: liftVsLookup,
     };
   });
 
@@ -255,13 +358,67 @@ router.post('/', async (req, res) => {
   }
 
   // --- 5. Pick winner + reason -------------------------------------------
+  // Decision hierarchy (locked 2026-04-29):
+  //   1. Hard rules (already applied in step 3)
+  //   2. High-confidence lookup (30+ samples) — wins by default
+  //   3. AI model — only when lookup is weak OR AI proves +10pp lift with 30+ samples
+  //   4. Exploration — separate, labeled, capped (step 5b)
+  //   5. Fallback — daemon down or no data
+
+  const LOOKUP_MIN_SAMPLES = 30;
+  const AI_OVERRIDE_MIN_LIFT_PP = 10;
+  const AI_OVERRIDE_MIN_SAMPLES = 30;
+  const CONCENTRATION_MAX_PROC = 0.35;   // 35% per processor group
+  const CONCENTRATION_MAX_MID = 0.20;    // 20% per individual MID
+
   let pickedGw = null;
   let reason;
   let confidence = 0;
+  let overrideDiag = null; // override diagnostics object
+
+  // Pre-compute lookup best gateway (used by multiple branches)
+  let lookupTopGw = null; let lookupTopRate = -Infinity; let lookupTopSample = 0;
+  for (const g of eligibleGateways) {
+    const pc = canonProc(g.processor_name);
+    const lk = lookupForProc(pc);
+    const rate = lk && typeof lk.approval_rate === 'number' ? lk.approval_rate : null;
+    const sample = lk && typeof lk.sample_size === 'number' ? lk.sample_size : 0;
+    if (rate != null && rate > lookupTopRate) {
+      lookupTopRate = rate; lookupTopGw = g; lookupTopSample = sample;
+    }
+  }
+
+  // Pre-compute AI best gateway
+  let aiTopGwCandidate = null; let aiTopScoreVal = -Infinity;
+  if (daemonResult.ok && scoreByGw.size > 0) {
+    for (const g of eligibleGateways) {
+      const s = scoreByGw.has(g.gateway_id) ? scoreByGw.get(g.gateway_id) : -Infinity;
+      if (s > aiTopScoreVal) { aiTopScoreVal = s; aiTopGwCandidate = g; }
+    }
+  }
+
+  // Concentration tracking — recent recommendation distribution
+  let concByProc = {};
+  let concByMid = {};
+  try {
+    const recentRecs = querySql(
+      `SELECT recommended_processor, recommended_gateway_id, COUNT(*) as cnt
+       FROM shadow_decisions WHERE client_id = ? AND request_received_at > datetime('now', '-7 days')
+       GROUP BY recommended_processor, recommended_gateway_id`, [clientId]
+    );
+    const totalRecs = recentRecs.reduce((s, r) => s + r.cnt, 0);
+    if (totalRecs > 0) {
+      for (const r of recentRecs) {
+        const proc = r.recommended_processor;
+        concByProc[proc] = (concByProc[proc] || 0) + r.cnt;
+        concByMid[r.recommended_gateway_id] = (concByMid[r.recommended_gateway_id] || 0) + r.cnt;
+      }
+      for (const k of Object.keys(concByProc)) concByProc[k] /= totalRecs;
+      for (const k of Object.keys(concByMid)) concByMid[k] /= totalRecs;
+    }
+  } catch (_) { /* concentration check failure is non-fatal */ }
 
   if (eligibleGateways.length === 0) {
-    // Catastrophic: lookup hard-excluded every processor AND the filter safeguard
-    // didn't restore. Fall back to the first active gateway on file.
     pickedGw = gateways[0];
     reason = 'no_candidates';
     confidence = 0;
@@ -271,32 +428,80 @@ router.post('/', async (req, res) => {
     const lk = lookupForProc(canonProc(pickedGw.processor_name));
     confidence = lk && typeof lk.approval_rate === 'number' ? lk.approval_rate : 0;
   } else if (daemonResult.ok && scoreByGw.size > 0) {
-    // AI ranked per-gateway — pick the highest.
-    let best = null;
-    for (const g of eligibleGateways) {
-      const s = scoreByGw.has(g.gateway_id) ? scoreByGw.get(g.gateway_id) : -Infinity;
-      if (best == null || s > best.score) best = { gw: g, score: s };
-    }
-    pickedGw = best.gw;
-    confidence = Number.isFinite(best.score) ? best.score : 0;
+    // Both lookup and AI are available — apply decision hierarchy.
 
-    // Would lookup alone have picked something different? Compare the AI winner's
-    // processor to the processor with the top lookup approval rate.
-    let lookupTopProcCanon = null; let lookupTopRate = -Infinity; let lookupBestGwId = null;
-    for (const g of eligibleGateways) {
-      const pc = canonProc(g.processor_name);
-      const lk = lookupForProc(pc);
-      const rate = lk && typeof lk.approval_rate === 'number' ? lk.approval_rate : null;
-      if (rate != null && rate > lookupTopRate) { lookupTopRate = rate; lookupTopProcCanon = pc; lookupBestGwId = g.gateway_id; }
-    }
-    const pickedProcCanon = canonProc(pickedGw.processor_name);
-    if (lookupTopProcCanon && pickedProcCanon !== lookupTopProcCanon) {
-      reason = 'ai_override';
-    } else if ((filterResult.excluded && filterResult.excluded.length > 0)
-            || (filterResult.downranked && filterResult.downranked.length > 0)) {
-      reason = 'lookup_filtered';
-    } else {
+    const aiProcCanon = aiTopGwCandidate ? canonProc(aiTopGwCandidate.processor_name) : null;
+    const lookupProcCanon = lookupTopGw ? canonProc(lookupTopGw.processor_name) : null;
+    const aiGwLookup = aiTopGwCandidate ? lookupForProc(aiProcCanon) : null;
+    const aiGwLookupRate = aiGwLookup && typeof aiGwLookup.approval_rate === 'number' ? aiGwLookup.approval_rate : null;
+    const aiGwLookupSample = aiGwLookup && typeof aiGwLookup.sample_size === 'number' ? aiGwLookup.sample_size : 0;
+    const expectedLiftPp = (aiGwLookupRate != null && lookupTopRate > -Infinity)
+      ? (aiGwLookupRate - lookupTopRate) * 100 : null;
+
+    // Check if lookup and AI agree (same processor)
+    const aiAgreesWithLookup = (aiProcCanon === lookupProcCanon);
+
+    if (aiAgreesWithLookup) {
+      // Agreement — use AI's gateway pick (may differ at MID level)
+      pickedGw = aiTopGwCandidate;
+      confidence = aiTopScoreVal;
       reason = 'lookup_ai_hybrid';
+    } else if (lookupTopSample >= LOOKUP_MIN_SAMPLES) {
+      // High-confidence lookup — AI wants to override. Check if allowed.
+      let overrideAllowed = false;
+      let blockReason = null;
+
+      if (aiGwLookupSample < AI_OVERRIDE_MIN_SAMPLES) {
+        blockReason = 'low_confidence_ai_gateway';
+      } else if (expectedLiftPp == null || expectedLiftPp <= AI_OVERRIDE_MIN_LIFT_PP) {
+        blockReason = expectedLiftPp != null && expectedLiftPp < 0
+          ? 'negative_expected_lift' : 'high_confidence_lookup_protected';
+      } else {
+        // AI has 30+ samples AND expected lift > +10pp — check concentration
+        const aiProc = aiTopGwCandidate.processor_name;
+        const aiMid = aiTopGwCandidate.gateway_id;
+        if ((concByProc[aiProc] || 0) >= CONCENTRATION_MAX_PROC) {
+          blockReason = 'concentration_cap_processor';
+        } else if ((concByMid[aiMid] || 0) >= CONCENTRATION_MAX_MID) {
+          blockReason = 'concentration_cap_mid';
+        } else {
+          overrideAllowed = true;
+        }
+      }
+
+      // Build override diagnostics
+      overrideDiag = {
+        lookup_gateway: lookupTopGw.gateway_id,
+        lookup_processor: lookupTopGw.processor_name,
+        lookup_rate: lookupTopRate,
+        lookup_sample: lookupTopSample,
+        ai_gateway: aiTopGwCandidate.gateway_id,
+        ai_processor: aiTopGwCandidate.processor_name,
+        ai_rate: aiGwLookupRate,
+        ai_sample: aiGwLookupSample,
+        ai_score: aiTopScoreVal,
+        expected_lift_pp: expectedLiftPp != null ? Math.round(expectedLiftPp * 10) / 10 : null,
+        override_allowed: overrideAllowed,
+        override_block_reason: blockReason,
+        conc_proc: Math.round((concByProc[aiTopGwCandidate.processor_name] || 0) * 1000) / 10,
+        conc_mid: Math.round((concByMid[aiTopGwCandidate.gateway_id] || 0) * 1000) / 10,
+      };
+
+      if (overrideAllowed) {
+        pickedGw = aiTopGwCandidate;
+        confidence = aiTopScoreVal;
+        reason = 'ai_override_justified';
+      } else {
+        // Defer to lookup — pick lookup's best gateway
+        pickedGw = lookupTopGw;
+        confidence = lookupTopRate;
+        reason = 'lookup_protected';
+      }
+    } else {
+      // Lookup is low-confidence (< 30 samples) — AI is free to pick
+      pickedGw = aiTopGwCandidate;
+      confidence = aiTopScoreVal;
+      reason = (lookupTopGw && lookupProcCanon !== aiProcCanon) ? 'ai_override' : 'lookup_ai_hybrid';
     }
   } else {
     // Daemon unavailable / timeout / malformed — fall back to lookup's top-rate gateway.
@@ -311,11 +516,9 @@ router.post('/', async (req, res) => {
     reason = daemonResult.timed_out ? 'daemon_timeout' : 'lookup_only_fallback';
   }
 
-  // At this point pickedGw = AI's / lookup's top pick. Capture it before any
-  // exploration override so shadow_decisions.ai_recommended_gateway_id records
-  // "what the model would have done" separately from the final engine decision.
-  const aiTopGw = pickedGw;
-  const aiTopGatewayId = aiTopGw ? aiTopGw.gateway_id : null;
+  // ai_recommended_gateway_id records "what the AI model would have picked"
+  // (pre-lookup-protection, pre-exploration) so we can compare AI vs engine.
+  const aiTopGatewayId = aiTopGwCandidate ? aiTopGwCandidate.gateway_id : null;
   const aiTopScore = (daemonResult.ok && scoreByGw.size > 0 && aiTopGatewayId != null)
     ? (scoreByGw.has(aiTopGatewayId) ? scoreByGw.get(aiTopGatewayId) : null)
     : null;
@@ -431,8 +634,8 @@ router.post('/', async (req, res) => {
   const hourOfDay = now.getUTCHours();
   const dayOfWeek = now.getUTCDay();
   const binAvgAmt = queryOneSql(
-    'SELECT AVG(order_total) AS avg FROM orders WHERE cc_first_6 = ? AND order_total > 0',
-    [bin]
+    'SELECT AVG(order_total) AS avg FROM orders WHERE client_id = ? AND cc_first_6 = ? AND order_total > 0',
+    [clientId, bin]
   );
   const amountVsBinAvg = (amt != null && binAvgAmt && binAvgAmt.avg > 0)
     ? amt / binAvgAmt.avg : null;
@@ -501,7 +704,15 @@ router.post('/', async (req, res) => {
     hour_of_day: now.getUTCHours(),
     day_of_week: now.getUTCDay(),
     daemon_payload: daemonPayload,
+    override_diagnostics: overrideDiag,
+    concentration: {
+      by_processor: concByProc,
+      by_mid: concByMid,
+    },
   };
+
+  // --- Experiment assignment (deterministic, logging-only in Release 1) ---
+  const exp = assignExperiment({ clientId, emailHash, pickedGatewayId, reason });
 
   return writeAndRespond(res, {
     clientId, bin, amount: amt, product_id: pid, emailHash, salesType,
@@ -539,6 +750,16 @@ router.post('/', async (req, res) => {
     regret,
     wouldHaveApprovedBinary,
     expectedApproval,
+    // Experiment fields
+    experimentId: exp.experimentId,
+    experimentVariant: exp.experimentVariant,
+    selectedBy: exp.selectedBy,
+    experimentBucket: exp.experimentBucket,
+    experimentSkipReason: exp.experimentSkipReason,
+    wouldForceGateway: exp.wouldForceGateway,
+    forceGatewayRequested: exp.forceGatewayRequested,
+    forceGatewayResult: exp.forceGatewayResult,
+    experimentAssignmentKey: exp.experimentAssignmentKey,
   }, 200);
 });
 
@@ -566,8 +787,11 @@ function writeAndRespond(res, d, httpStatus) {
          hour_of_day, day_of_week, amount_vs_bin_avg,
          lookup_best_gateway_id, ai_disagreed_with_lookup, confidence_tier,
          ai_score_spread, lookup_score_spread, best_lookup_rate, chosen_lookup_rate,
-         regret, would_have_approved_binary, expected_approval
-       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         regret, would_have_approved_binary, expected_approval,
+         experiment_id, experiment_variant, selected_by, experiment_bucket,
+         experiment_skip_reason, would_force_gateway, force_gateway_requested,
+         force_gateway_result, experiment_assignment_key
+       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         shadowId, d.clientId, d.bin, d.amount, d.product_id, d.emailHash, d.salesType,
         d.recommendedGatewayId, d.recommendedProcessor, d.confidence, d.reason,
@@ -582,6 +806,10 @@ function writeAndRespond(res, d, httpStatus) {
         d.lookupBestGatewayId, d.aiDisagreedWithLookup, d.confidenceTier,
         d.aiScoreSpread, d.lookupScoreSpread, d.bestLookupRate, d.chosenLookupRate,
         d.regret, d.wouldHaveApprovedBinary, d.expectedApproval,
+        d.experimentId, d.experimentVariant || 'none', d.selectedBy || 'beast',
+        d.experimentBucket, d.experimentSkipReason,
+        d.wouldForceGateway ? 1 : 0, d.forceGatewayRequested ? 1 : 0,
+        d.forceGatewayResult, d.experimentAssignmentKey,
       ]
     );
   } catch (err) {
@@ -597,6 +825,11 @@ function writeAndRespond(res, d, httpStatus) {
     confidence: d.confidence,
     reason: d.reason,
     latency_ms: latencyMs,
+    experiment_id: d.experimentId || null,
+    experiment_variant: d.experimentVariant || 'none',
+    selected_by: d.selectedBy || 'beast',
+    would_force_gateway: d.wouldForceGateway === 1,
+    force_gateway: false,  // Release 1: always false — no live routing
   });
 }
 

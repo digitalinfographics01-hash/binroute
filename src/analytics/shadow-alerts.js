@@ -537,8 +537,74 @@ function runShadowAlerts(db, clientId) {
   allAlerts.push(...checkDaemonTimeoutRate(clientId));
   allAlerts.push(...checkReconciliationGap(clientId));
   allAlerts.push(...checkFallbackRate(clientId));
+  allAlerts.push(...checkExperimentHealth(clientId));
 
   return allAlerts;
+}
+
+// ---------------------------------------------------------------------------
+// A/B Experiment health alerts (Release 1)
+// ---------------------------------------------------------------------------
+
+function checkExperimentHealth(clientId) {
+  const alerts = [];
+  const since = _daysAgo(1);
+
+  // 1. Unexpected force_gateway_requested in Release 1
+  const badForce = queryOneSql(
+    `SELECT COUNT(*) as cnt FROM shadow_decisions
+     WHERE client_id = ? AND force_gateway_requested = 1
+       AND request_received_at >= ?`,
+    [clientId, since]
+  );
+  alerts.push(_alert(
+    'experiment_unexpected_force',
+    badForce.cnt > 0 ? 'P0' : 'ok',
+    badForce.cnt > 0
+      ? `${badForce.cnt} rows with force_gateway_requested=1 in last 24h — should be 0 in Release 1`
+      : 'No unexpected force requests (Release 1 safe)',
+    badForce.cnt, 0, badForce.cnt > 0
+  ));
+
+  // 2. Assignment errors
+  const assignErrors = queryOneSql(
+    `SELECT COUNT(*) as cnt FROM shadow_decisions
+     WHERE client_id = ? AND experiment_skip_reason = 'assignment_error'
+       AND request_received_at >= ?`,
+    [clientId, since]
+  );
+  alerts.push(_alert(
+    'experiment_assignment_error',
+    assignErrors.cnt > 0 ? 'P1' : 'ok',
+    assignErrors.cnt > 0
+      ? `${assignErrors.cnt} experiment assignment errors in last 24h`
+      : 'No experiment assignment errors',
+    assignErrors.cnt, 0, assignErrors.cnt > 0
+  ));
+
+  // 3. Distribution check — active experiment but no experiment_id rows
+  const activeExp = queryOneSql(
+    `SELECT id FROM experiments WHERE client_id = ? AND status = 'active' LIMIT 1`,
+    [clientId]
+  );
+  if (activeExp) {
+    const tagged = queryOneSql(
+      `SELECT COUNT(*) as cnt FROM shadow_decisions
+       WHERE client_id = ? AND experiment_id = ?
+         AND request_received_at >= ?`,
+      [clientId, activeExp.id, since]
+    );
+    alerts.push(_alert(
+      'experiment_missing_assignment',
+      tagged.cnt === 0 ? 'P1' : 'ok',
+      tagged.cnt === 0
+        ? `Active experiment ${activeExp.id} but 0 rows tagged in last 24h`
+        : `${tagged.cnt} rows tagged for experiment ${activeExp.id} in last 24h`,
+      tagged.cnt, 1, tagged.cnt === 0
+    ));
+  }
+
+  return alerts;
 }
 
 module.exports = {
@@ -554,4 +620,5 @@ module.exports = {
   checkDaemonTimeoutRate,
   checkReconciliationGap,
   checkFallbackRate,
+  checkExperimentHealth,
 };

@@ -849,6 +849,21 @@ CREATE TABLE IF NOT EXISTS shadow_decisions (
   ai_recommended_gateway_id INTEGER,
   ai_scored_at DATETIME
 );
+
+-- A/B experiment definitions
+CREATE TABLE IF NOT EXISTS experiments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft',
+  traffic_pct REAL NOT NULL DEFAULT 10.0,
+  treatment_pct REAL NOT NULL DEFAULT 50.0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  started_at DATETIME,
+  paused_at DATETIME,
+  completed_at DATETIME,
+  notes TEXT
+);
 `;
 
 const INDEXES_SQL = `
@@ -897,6 +912,9 @@ CREATE INDEX IF NOT EXISTS idx_shadow_sticky_order ON shadow_decisions(actual_st
 CREATE INDEX IF NOT EXISTS idx_shadow_client_tier ON shadow_decisions(client_id, confidence_tier);
 CREATE INDEX IF NOT EXISTS idx_shadow_issuer_cardtype ON shadow_decisions(issuer_bank, card_type);
 CREATE INDEX IF NOT EXISTS idx_shadow_disagreement ON shadow_decisions(ai_disagreed_with_lookup, reconciled_at);
+CREATE INDEX IF NOT EXISTS idx_shadow_experiment ON shadow_decisions(experiment_id, experiment_variant);
+CREATE INDEX IF NOT EXISTS idx_shadow_experiment_bucket ON shadow_decisions(experiment_id, experiment_bucket);
+CREATE INDEX IF NOT EXISTS idx_experiments_client_status ON experiments(client_id, status);
 `;
 
 /**
@@ -1140,6 +1158,17 @@ function runMigrations() {
 
     // Merchant vertical on clients table (for P3.2 query)
     "ALTER TABLE clients ADD COLUMN merchant_vertical TEXT DEFAULT NULL",
+
+    // A/B experiment fields on shadow_decisions
+    "ALTER TABLE shadow_decisions ADD COLUMN experiment_id INTEGER DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN experiment_variant TEXT DEFAULT 'none'",
+    "ALTER TABLE shadow_decisions ADD COLUMN selected_by TEXT DEFAULT 'beast'",
+    "ALTER TABLE shadow_decisions ADD COLUMN experiment_bucket INTEGER DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN experiment_skip_reason TEXT DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN would_force_gateway INTEGER DEFAULT 0",
+    "ALTER TABLE shadow_decisions ADD COLUMN force_gateway_requested INTEGER DEFAULT 0",
+    "ALTER TABLE shadow_decisions ADD COLUMN force_gateway_result TEXT DEFAULT NULL",
+    "ALTER TABLE shadow_decisions ADD COLUMN experiment_assignment_key TEXT DEFAULT NULL",
   ];
   for (const m of migrations) {
     try { execSql(m); } catch (e) {
