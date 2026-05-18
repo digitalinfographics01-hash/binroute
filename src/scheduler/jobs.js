@@ -532,7 +532,7 @@ function startScheduler() {
     try {
       const { runRetrain } = require('../ml/retrain-runner');
       const result = runRetrain();
-      console.log(`[Scheduler] AI retrain complete. Velocity: ${result.velocityUpdated}, Subscription: ${result.subscriptionUpdated}`);
+      console.log(`[Scheduler] AI retrain complete. Attempts: ${result.attemptsInserted}, Velocity: ${result.velocityUpdated}, Subscription: ${result.subscriptionUpdated}`);
     } catch (err) {
       console.error('[Scheduler] AI retrain failed:', err.message);
     }
