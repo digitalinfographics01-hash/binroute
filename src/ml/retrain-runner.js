@@ -14,6 +14,8 @@ const { execSync } = require('child_process');
 const path = require('path');
 const { computeVelocityFeatures } = require('../analytics/velocity-features');
 const { computeSubscriptionFeatures } = require('../analytics/subscription-features');
+const { computeAttemptVelocity } = require('../analytics/attempt-velocity-features');
+const { computeAttemptSubscription } = require('../analytics/attempt-subscription-features');
 const { explodeAllOrders } = require('../pipeline/attempt-exploder');
 const { querySql } = require('../db/connection');
 
@@ -42,32 +44,48 @@ function runRetrain() {
     console.error('[ML Retrain] Attempt exploder failed:', err.message);
   }
 
-  // Step 2: Backfill velocity features for any new orders
-  console.log('[ML Retrain] Step 2: Velocity features...');
-  let velocityUpdated = 0;
+  // Step 2: Backfill attempt-level velocity features (v1→v2)
+  console.log('[ML Retrain] Step 2: Attempt velocity features...');
+  let attemptVelocityUpdated = 0;
   try {
     const clients = querySql('SELECT id, name FROM clients ORDER BY id');
     for (const client of clients) {
-      const count = computeVelocityFeatures(client.id);
-      velocityUpdated += count;
-      if (count > 0) console.log(`  [${client.name}] ${count} velocity features computed`);
+      const count = computeAttemptVelocity(client.id);
+      attemptVelocityUpdated += count;
+      if (count > 0) console.log(`  [${client.name}] ${count} attempt velocity features computed`);
     }
   } catch (err) {
-    console.error('[ML Retrain] Velocity backfill failed:', err.message);
+    console.error('[ML Retrain] Attempt velocity backfill failed:', err.message);
   }
 
-  // Step 3: Backfill subscription features for any new orders
-  console.log('[ML Retrain] Step 3: Subscription features...');
-  let subscriptionUpdated = 0;
+  // Step 3: Backfill attempt-level subscription features (v2→v3)
+  console.log('[ML Retrain] Step 3: Attempt subscription features...');
+  let attemptSubscriptionUpdated = 0;
   try {
     const clients = querySql('SELECT id, name FROM clients ORDER BY id');
     for (const client of clients) {
-      const count = computeSubscriptionFeatures(client.id);
-      subscriptionUpdated += count;
-      if (count > 0) console.log(`  [${client.name}] ${count} subscription features computed`);
+      const count = computeAttemptSubscription(client.id);
+      attemptSubscriptionUpdated += count;
+      if (count > 0) console.log(`  [${client.name}] ${count} attempt subscription features computed`);
     }
   } catch (err) {
-    console.error('[ML Retrain] Subscription backfill failed:', err.message);
+    console.error('[ML Retrain] Attempt subscription backfill failed:', err.message);
+  }
+
+  // Step 3b: Backfill tx_features velocity + subscription (for Python training)
+  console.log('[ML Retrain] Step 3b: tx_features velocity + subscription...');
+  let velocityUpdated = 0, subscriptionUpdated = 0;
+  try {
+    const clients = querySql('SELECT id, name FROM clients ORDER BY id');
+    for (const client of clients) {
+      const v = computeVelocityFeatures(client.id);
+      velocityUpdated += v;
+      const s = computeSubscriptionFeatures(client.id);
+      subscriptionUpdated += s;
+      if (v + s > 0) console.log(`  [${client.name}] ${v} velocity, ${s} subscription`);
+    }
+  } catch (err) {
+    console.error('[ML Retrain] tx_features backfill failed:', err.message);
   }
 
   // Step 4: Rebuild lookup tables
@@ -105,7 +123,7 @@ function runRetrain() {
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
   console.log(`[ML Retrain] Pipeline complete in ${elapsed}s`);
 
-  return { attemptsInserted, velocityUpdated, subscriptionUpdated, retrainOutput };
+  return { attemptsInserted, attemptVelocityUpdated, attemptSubscriptionUpdated, velocityUpdated, subscriptionUpdated, retrainOutput };
 }
 
 module.exports = { runRetrain };
