@@ -32,7 +32,7 @@ const WORKER_PATH = path.join(ROOT, 'scripts', 'import-worker.js');
 const CLIENT_ID = 6;
 const IMPORT_DAY_WINDOW = 15;
 const UPDATE_DAY_WINDOW = 5;
-const MAX_BACKUPS = 3;
+const MAX_BACKUPS = 2;
 
 // ---------------------------------------------------------------------------
 // Logging — all output goes to sync log file + stdout
