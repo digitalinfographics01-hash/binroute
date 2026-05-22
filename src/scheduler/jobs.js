@@ -13,6 +13,7 @@ const { recomputeAllAnalytics } = require('../analytics/engine');
 const { runPostSyncPipeline } = require('../pipeline/post-sync');
 const { runVctPostSyncPipeline } = require('../pipeline/post-sync-vct');
 const { mergeStagingToMain } = require('../db/staging-merge');
+const { runMissingRebillsCheck } = require('../../scripts/check-missing-rebills');
 
 const WORKER_PATH = path.join(__dirname, '..', '..', 'scripts', 'import-worker.js');
 const STAGING_DIR = path.join(__dirname, '..', '..', 'data', 'staging');
@@ -303,6 +304,20 @@ async function kpPostSync(clientId) {
     }
   } catch (err) {
     console.error(`[Scheduler] Playbook eval failed:`, err.message);
+  }
+
+  // Missing rebills check — compare against Flow Optix (Kytsan only)
+  if (clientId === 1) {
+    try {
+      const report = await runMissingRebillsCheck(14);
+      if (report.missingCount > 0) {
+        console.log(`[Scheduler] ALERT: ${report.missingCount} orders missing from Flow Optix ($${report.missingRevenue.toFixed(2)} revenue)`);
+      } else {
+        console.log('[Scheduler] Rebill check: all orders have rebills scheduled.');
+      }
+    } catch (err) {
+      console.error(`[Scheduler] Missing rebills check failed:`, err.message);
+    }
   }
 }
 
