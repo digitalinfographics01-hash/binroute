@@ -306,19 +306,6 @@ async function kpPostSync(clientId) {
     console.error(`[Scheduler] Playbook eval failed:`, err.message);
   }
 
-  // Missing rebills check — compare against Flow Optix (Kytsan only)
-  if (clientId === 1) {
-    try {
-      const report = await runMissingRebillsCheck(14);
-      if (report.missingCount > 0) {
-        console.log(`[Scheduler] ALERT: ${report.missingCount} orders missing from Flow Optix ($${report.missingRevenue.toFixed(2)} revenue)`);
-      } else {
-        console.log('[Scheduler] Rebill check: all orders have rebills scheduled.');
-      }
-    } catch (err) {
-      console.error(`[Scheduler] Missing rebills check failed:`, err.message);
-    }
-  }
 }
 
 async function vctPostSync(clientId) {
@@ -554,6 +541,21 @@ function startScheduler() {
   });
 
 
+  // Daily missing rebills check — 9 AM PST (4 PM UTC)
+  cron.schedule('0 16 * * *', async () => {
+    console.log('[Scheduler] === MISSING REBILLS CHECK (9 AM PST) ===');
+    try {
+      const report = await runMissingRebillsCheck(14);
+      if (report.missingCount > 0) {
+        console.log(`[Scheduler] ALERT: ${report.missingCount} orders missing from Flow Optix ($${report.missingRevenue.toFixed(2)} revenue)`);
+      } else {
+        console.log('[Scheduler] Rebill check: all orders have rebills scheduled.');
+      }
+    } catch (err) {
+      console.error(`[Scheduler] Missing rebills check failed:`, err.message);
+    }
+  });
+
   console.log('[Scheduler] Jobs scheduled:');
   console.log('  - Daily sync: clients 1,2 at 6:00 AM UTC');
   console.log('  - Daily sync: client 6 (VCT) at 7:00 AM UTC');
@@ -561,6 +563,7 @@ function startScheduler() {
   console.log('  - Hourly MID check: every hour at :30');
   console.log('  - Implementation check: every 6 hours');
   console.log('  - Weekly AI retrain: Sunday 7:00 AM');
+  console.log('  - Missing rebills check: daily 9:00 AM PST (4:00 PM UTC)');
 }
 
 function daysAgo(n) {
