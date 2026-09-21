@@ -47,13 +47,17 @@ def main():
     telegram_client.start()
 
     if db.get_sync_cursor(conn, "telegram") is None:
+        print("worker_loop: starting Telegram backfill...")
         telegram_client.loop.run_until_complete(
             telegram_worker.run_backfill(telegram_client, conn, BACKFILL_DAYS)
         )
         db.set_sync_cursor(conn, "telegram", "done")
+        print("worker_loop: Telegram backfill complete")
 
     if db.get_sync_cursor(conn, "gmail") is None:
+        print("worker_loop: starting Gmail backfill...")
         gmail_worker.run_backfill(gmail_service, conn, os.environ["GMAIL_ACCOUNT"], BACKFILL_DAYS)
+        print("worker_loop: Gmail backfill complete")
 
     classify_pending(conn, anthropic_client)
     resolver.resolve_open_tasks(conn)
@@ -62,10 +66,14 @@ def main():
 
     async def periodic_cycle():
         while True:
-            gmail_worker.run_poll(gmail_service, conn, os.environ["GMAIL_ACCOUNT"])
-            classify_pending(conn, anthropic_client)
-            resolver.resolve_open_tasks(conn)
-            reminder.check_and_send_reminders(conn, send_reminder)
+            try:
+                gmail_worker.run_poll(gmail_service, conn, os.environ["GMAIL_ACCOUNT"])
+                classify_pending(conn, anthropic_client)
+                resolver.resolve_open_tasks(conn)
+                reminder.check_and_send_reminders(conn, send_reminder)
+                print("worker_loop: cycle complete")
+            except Exception as error:
+                print(f"worker_loop: cycle failed, will retry next interval: {error}")
             await asyncio.sleep(POLL_SECONDS)
 
     telegram_client.loop.create_task(periodic_cycle())
