@@ -1,5 +1,6 @@
 import base64
 import json
+import time
 from datetime import datetime, timedelta, timezone
 
 from google.oauth2.credentials import Credentials
@@ -76,8 +77,30 @@ def build_service(credentials_file, token_file):
     return build("gmail", "v1", credentials=creds)
 
 
+RATE_LIMIT_MAX_RETRIES = 5
+
+
+def _is_rate_limit_error(error):
+    if error.resp.status not in (403, 429):
+        return False
+    message = str(error)
+    return any(
+        marker in message
+        for marker in ("rateLimitExceeded", "quotaExceeded", "userRateLimitExceeded")
+    )
+
+
 def _ingest_message(service, conn, message_id, account_email):
-    full = service.users().messages().get(userId="me", id=message_id, format="full").execute()
+    attempt = 0
+    while True:
+        try:
+            full = service.users().messages().get(userId="me", id=message_id, format="full").execute()
+            break
+        except HttpError as error:
+            if not _is_rate_limit_error(error) or attempt >= RATE_LIMIT_MAX_RETRIES:
+                raise
+            time.sleep(2**attempt)
+            attempt += 1
     fields = parse_gmail_message(full, account_email)
     db.insert_message(conn, **fields)
     if fields["is_from_user"]:
