@@ -11,3 +11,4 @@ gw_data.json
 *.csv
 master_BIN_file.csv
 kytsan_Gateway_Info.csv
+.worktrees/
