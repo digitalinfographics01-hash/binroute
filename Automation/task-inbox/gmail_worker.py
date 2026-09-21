@@ -77,7 +77,12 @@ def build_service(credentials_file, token_file):
     return build("gmail", "v1", credentials=creds)
 
 
-RATE_LIMIT_MAX_RETRIES = 5
+RATE_LIMIT_MAX_RETRIES = 4
+RATE_LIMIT_RETRY_SECONDS = 65  # Gmail's rate limit here is a per-minute bucket;
+# a short exponential backoff (seconds) doesn't reliably clear it, so wait
+# past a full minute instead of guessing a shorter delay.
+BACKFILL_PACING_SECONDS = 0.3  # spread requests out during backfill so a large
+# volume of messages doesn't immediately re-trip the same per-minute quota
 
 
 def _is_rate_limit_error(error):
@@ -99,7 +104,7 @@ def _ingest_message(service, conn, message_id, account_email):
         except HttpError as error:
             if not _is_rate_limit_error(error) or attempt >= RATE_LIMIT_MAX_RETRIES:
                 raise
-            time.sleep(2**attempt)
+            time.sleep(RATE_LIMIT_RETRY_SECONDS)
             attempt += 1
     fields = parse_gmail_message(full, account_email)
     db.insert_message(conn, **fields)
@@ -114,6 +119,7 @@ def run_backfill(service, conn, account_email, days):
         response = request.execute()
         for item in response.get("messages", []):
             _ingest_message(service, conn, item["id"], account_email)
+            time.sleep(BACKFILL_PACING_SECONDS)
         request = service.users().messages().list_next(request, response)
     profile = service.users().getProfile(userId="me").execute()
     db.set_sync_cursor(conn, "gmail", profile["historyId"])
