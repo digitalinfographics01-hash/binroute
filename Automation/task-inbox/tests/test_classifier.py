@@ -10,6 +10,12 @@ class FakeResponse:
         self.content = [types.SimpleNamespace(text=json.dumps(payload))]
 
 
+class FakeBrokenResponse:
+    """Response with malformed JSON (raw text instead of valid JSON)."""
+    def __init__(self, raw_text):
+        self.content = [types.SimpleNamespace(text=raw_text)]
+
+
 class FakeMessages:
     def __init__(self, payload):
         self._payload = payload
@@ -20,9 +26,26 @@ class FakeMessages:
         return FakeResponse(self._payload)
 
 
+class FakeBrokenMessages:
+    """Messages that return malformed JSON."""
+    def __init__(self, raw_text):
+        self._raw_text = raw_text
+        self.last_call = None
+
+    def create(self, **kwargs):
+        self.last_call = kwargs
+        return FakeBrokenResponse(self._raw_text)
+
+
 class FakeClient:
     def __init__(self, payload):
         self.messages = FakeMessages(payload)
+
+
+class FakeBrokenClient:
+    """Client that returns malformed JSON."""
+    def __init__(self, raw_text):
+        self.messages = FakeBrokenMessages(raw_text)
 
 
 def test_classify_message_parses_both_true():
@@ -73,3 +96,25 @@ def test_classify_and_store_inserts_nothing_when_neither():
     classifier.classify_and_store(client, conn, message_row)
     assert db.get_open_tasks(conn) == []
     assert db.get_unclassified_messages(conn) == []
+
+
+def test_classify_message_returns_no_task_on_malformed_json():
+    """When Claude returns malformed JSON, classify_message should return a default 'no task' result."""
+    client = FakeBrokenClient("Sorry, I can't help with that.")
+    result = classifier.classify_message(client, "Some message")
+    assert result == {
+        "waiting_on_reply": False,
+        "asked_of_me": False,
+        "task_text": "",
+    }
+
+
+def test_classify_message_defaults_task_text_when_missing():
+    """When the response JSON is missing the task_text key, it should default to empty string."""
+    client = FakeClient({"waiting_on_reply": True, "asked_of_me": False})
+    result = classifier.classify_message(client, "Can you review this?")
+    assert result == {
+        "waiting_on_reply": True,
+        "asked_of_me": False,
+        "task_text": "",
+    }

@@ -32,7 +32,15 @@ def classify_message(client, text):
         messages=[{"role": "user", "content": text}],
     )
     raw = response.content[0].text.strip()
-    result = json.loads(raw)
+    try:
+        result = json.loads(raw)
+    except json.JSONDecodeError:
+        # If Claude returns malformed JSON, treat as "no task found"
+        return {
+            "waiting_on_reply": False,
+            "asked_of_me": False,
+            "task_text": "",
+        }
     return {
         "waiting_on_reply": bool(result.get("waiting_on_reply", False)),
         "asked_of_me": bool(result.get("asked_of_me", False)),
