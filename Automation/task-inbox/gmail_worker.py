@@ -1,5 +1,11 @@
 import base64
+import json
 from datetime import datetime, timedelta, timezone
+
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+
+import db
 
 
 def backfill_query(days):
@@ -44,3 +50,60 @@ def parse_gmail_message(msg_resource, account_email):
         "link": link,
         "timestamp": timestamp,
     }
+
+
+GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+
+
+def load_credentials(credentials_file, token_file):
+    with open(credentials_file) as f:
+        installed = json.load(f)["installed"]
+    with open(token_file) as f:
+        token_data = json.load(f)
+    return Credentials(
+        token=token_data["access_token"],
+        refresh_token=token_data.get("refresh_token"),
+        token_uri=installed["token_uri"],
+        client_id=installed["client_id"],
+        client_secret=installed["client_secret"],
+        scopes=GMAIL_SCOPES,
+    )
+
+
+def build_service(credentials_file, token_file):
+    creds = load_credentials(credentials_file, token_file)
+    return build("gmail", "v1", credentials=creds)
+
+
+def _ingest_message(service, conn, message_id, account_email):
+    full = service.users().messages().get(userId="me", id=message_id, format="full").execute()
+    fields = parse_gmail_message(full, account_email)
+    db.insert_message(conn, **fields)
+    if fields["is_from_user"]:
+        db.update_activity_state(conn, last_outbound_activity_at=fields["timestamp"])
+
+
+def run_backfill(service, conn, account_email, days):
+    query = backfill_query(days)
+    request = service.users().messages().list(userId="me", q=query)
+    while request is not None:
+        response = request.execute()
+        for item in response.get("messages", []):
+            _ingest_message(service, conn, item["id"], account_email)
+        request = service.users().messages().list_next(request, response)
+    profile = service.users().getProfile(userId="me").execute()
+    db.set_sync_cursor(conn, "gmail", profile["historyId"])
+
+
+def run_poll(service, conn, account_email):
+    cursor = db.get_sync_cursor(conn, "gmail")
+    if cursor is None:
+        run_backfill(service, conn, account_email, days=30)
+        return
+    response = service.users().history().list(userId="me", startHistoryId=cursor).execute()
+    for record in response.get("history", []):
+        for added in record.get("messagesAdded", []):
+            _ingest_message(service, conn, added["message"]["id"], account_email)
+    new_history_id = response.get("historyId")
+    if new_history_id:
+        db.set_sync_cursor(conn, "gmail", new_history_id)
