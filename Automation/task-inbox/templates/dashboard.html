@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head>
+  <title>Task Inbox</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    nav a { margin-right: 1rem; }
+    nav a.active { font-weight: bold; }
+    .item { border-bottom: 1px solid #ddd; padding: 0.5rem 0; }
+    .meta { color: #666; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/messages" class="{{ 'active' if view == 'messages' else '' }}">All Messages</a>
+    <a href="/waiting" class="{{ 'active' if view == 'waiting' else '' }}">Waiting on my reply</a>
+    <a href="/todo" class="{{ 'active' if view == 'todo' else '' }}">Asked to do something</a>
+  </nav>
+  {% if items|length == 0 %}
+    <p>Nothing here.</p>
+  {% endif %}
+  {% for item in items %}
+    <div class="item">
+      {% if view == 'messages' %}
+        <div class="meta">{{ item['source'] }} &middot; {{ item['timestamp'] }} &middot; {{ item['sender'] }}</div>
+        <div>{{ item['text'] }}</div>
+      {% else %}
+        <div class="meta">{{ item['source'] }} &middot; {{ item['created_at'] }} &middot; {{ item['sender'] }}</div>
+        <div>{{ item['task_text'] }}</div>
+        <a href="{{ item['link'] }}" target="_blank">Open original</a>
+      {% endif %}
+    </div>
+  {% endfor %}
+</body>
+</html>
