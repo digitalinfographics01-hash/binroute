@@ -44,12 +44,17 @@ these are not treated as mutually exclusive categories.
   chat or Gmail thread, the item clears from tabs 2/3 automatically (it
   stays visible in "All Messages" regardless — that tab is a log, not a
   worklist).
-- **Working hours**: 8:00 AM - 12:00 PM PST. All push reminders (Telegram
+- **Delivery channel**: a new, dedicated Telegram bot (separate from the
+  existing `MuhammadAlertsbot` used for chargeback alerts in
+  `merchant-automation` — kept separate so the two alert streams don't
+  mix). All reminders go through this bot DMing the user. **No OS/system
+  notifications at all** — Telegram-bot messages are the only
+  notification channel this tool uses.
+- **Working hours**: 8:00 AM - 12:00 PM PST. All push reminders (bot
   messages) are confined to this window — nothing gets sent outside it,
   no exceptions. (The dashboard's own visual urgency on open items is
   unaffected by this, since that's pull — the user only sees it if they
-  open the page — but no Telegram message is ever sent outside the
-  window.)
+  open the page — but no bot message is ever sent outside the window.)
 - **9:30 AM PST daily digest**: one consolidated Telegram message listing
   everything currently outstanding across tabs 2/3.
 - **11:30 AM PST final digest**: a second consolidated Telegram message,
@@ -83,11 +88,15 @@ these are not treated as mutually exclusive categories.
 
 ## New infrastructure needed
 
-- **Telegram user session**: `api_id`/`api_hash` from my.telegram.org +
-  one-time phone/code login via Telethon (must be a user session, not a
-  bot, to see full DM/group history and to send reminder messages as the
-  user rather than as a separate bot the user'd have to go set up and
-  message first).
+- **Telegram user session** (for *reading*): `api_id`/`api_hash` from
+  my.telegram.org + one-time phone/code login via Telethon — must be a
+  user session, not a bot, to see full DM/group history across every
+  chat the user is in.
+- **Telegram bot** (for *notifying*): a new bot created via @BotFather,
+  dedicated to this tool (separate from `MuhammadAlertsbot`). One-time
+  setup: create it, get its token, and have the user message it once so
+  it has a chat ID to DM back to — same pattern already used for the
+  `merchant-automation` chargeback bot.
 - **Anthropic API key**: from console.anthropic.com, for the
   classification step. Goes in a local `.env`, gitignored, never shared
   in chat.
@@ -112,7 +121,7 @@ Gmail (backfill 1mo, then poll every ~3 min)           ─┘              │
                                     dashboard.py (localhost)     resolver.py (marks done)   reminder.py (nudges)
                                                                                                     │
                                                                                                     ▼
-                                                                                    Telegram message to self
+                                                                                    dedicated Telegram bot → user DM
 ```
 
 ## Components
@@ -147,8 +156,9 @@ Gmail (backfill 1mo, then poll every ~3 min)           ─┘              │
     for the same idle stretch (only re-fires after either new outbound
     activity resets the clock, or another 60 idle minutes pass).
   - Outside 8:00 AM-12:00 PM: sends nothing, period.
-  - Delivery is a Telegram message to the user's own Saved Messages via
-    the same Telethon session — no separate bot needed.
+  - Delivery is via the dedicated Telegram bot's `sendMessage` API call
+    to the user's chat ID with it — not the Telethon user session, and
+    not any OS-level notification.
   - `last_outbound_activity_at` is updated by the ingestion workers
     whenever they see the user (not a client) send a message in a
     Telegram chat, or by the Gmail worker whenever it sees a Sent-folder
