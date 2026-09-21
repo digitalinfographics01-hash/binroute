@@ -24,11 +24,15 @@ def format_digest(open_tasks):
         return "Nothing outstanding right now."
     lines = ["Outstanding items:"]
     for task in open_tasks:
-        lines.append(f"- [{task['category']}] {task['task_text']} ({task['link']})")
+        line = f"- [{task['category']}] {task['task_text']}"
+        if task['link']:
+            line += f" ({task['link']})"
+        lines.append(line)
     return "\n".join(lines)
 
 
 def check_and_send_reminders(conn, send_fn, now=None):
+    # Caller-supplied now must be timezone-aware; naive datetimes are misinterpreted as local system time
     now_pst = (now or datetime.now(PST)).astimezone(PST)
 
     if not _is_within_work_hours(now_pst):

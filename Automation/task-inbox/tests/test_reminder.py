@@ -57,6 +57,10 @@ def test_1130_digest_sent_once_per_day():
     assert result == "digest_1130"
     assert len(sent) == 1
 
+    result2 = reminder.check_and_send_reminders(conn, sent.append, now=now)
+    assert result2 is None
+    assert len(sent) == 1
+
 
 def test_idle_nudge_fires_after_60_quiet_minutes():
     conn = _conn_with_open_task(datetime(2026, 9, 20, 8, 0, tzinfo=PST).isoformat())
@@ -95,7 +99,7 @@ def test_idle_nudge_does_not_fire_with_no_open_tasks():
     assert sent == []
 
 
-def test_idle_nudge_falls_back_to_oldest_open_task_when_no_activity_recorded():
+def test_idle_nudge_falls_back_to_most_recent_open_task_when_no_activity_recorded():
     conn = _conn_with_open_task(datetime(2026, 9, 20, 8, 0, tzinfo=PST).isoformat())
     now = datetime(2026, 9, 20, 9, 5, tzinfo=PST)
     sent = []
