@@ -83,12 +83,12 @@ def get_unclassified_messages(conn):
     ).fetchall()
 
 
-def insert_task(conn, message_id, category, task_text):
-    now = datetime.now(timezone.utc).isoformat()
+def insert_task(conn, message_id, category, task_text, created_at=None):
+    timestamp = created_at or datetime.now(timezone.utc).isoformat()
     conn.execute(
         """INSERT OR IGNORE INTO tasks (message_id, category, task_text, status, created_at)
            VALUES (?, ?, ?, 'open', ?)""",
-        (message_id, category, task_text, now),
+        (message_id, category, task_text, timestamp),
     )
     conn.commit()
 
