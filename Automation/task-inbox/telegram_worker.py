@@ -32,19 +32,28 @@ def build_client(session_name, api_id, api_hash):
     return TelegramClient(session_name, api_id, api_hash)
 
 
+async def _process_and_store_message(message, chat_id, sender_name, conn):
+    try:
+        fields = parse_telegram_message(message, chat_id, sender_name)
+        db.insert_message(conn, **fields)
+        if fields["is_from_user"]:
+            db.update_activity_state(conn, last_outbound_activity_at=fields["timestamp"])
+    except Exception as error:
+        print(f"telegram_worker: failed to process message {getattr(message, 'id', '?')} in chat {chat_id}: {error}")
+
+
 async def run_backfill(client, conn, days):
     cutoff = backfill_cutoff(days)
     async for dialog in client.iter_dialogs():
         chat_id = dialog.id
+        entity = dialog.entity
+        chat_display_name = getattr(entity, "title", None) or getattr(entity, "first_name", None) or str(chat_id)
         async for message in client.iter_messages(dialog, offset_date=cutoff, reverse=True):
             message_date = message.date if message.date.tzinfo else message.date.replace(tzinfo=timezone.utc)
             if message_date < cutoff:
                 continue
-            sender_name = "me" if message.out else (dialog.name or str(chat_id))
-            fields = parse_telegram_message(message, chat_id, sender_name)
-            db.insert_message(conn, **fields)
-            if fields["is_from_user"]:
-                db.update_activity_state(conn, last_outbound_activity_at=fields["timestamp"])
+            sender_name = "me" if message.out else chat_display_name
+            await _process_and_store_message(message, chat_id, sender_name, conn)
 
 
 def register_live_listener(client, conn):
@@ -54,9 +63,6 @@ def register_live_listener(client, conn):
         sender_name = "me" if event.message.out else (
             getattr(chat, "title", None) or getattr(chat, "first_name", None) or str(event.chat_id)
         )
-        fields = parse_telegram_message(event.message, event.chat_id, sender_name)
-        db.insert_message(conn, **fields)
-        if fields["is_from_user"]:
-            db.update_activity_state(conn, last_outbound_activity_at=fields["timestamp"])
+        await _process_and_store_message(event.message, event.chat_id, sender_name, conn)
 
     return handler
