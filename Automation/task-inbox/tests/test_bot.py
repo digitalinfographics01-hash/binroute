@@ -1,3 +1,6 @@
+import pytest
+import requests
+
 import bot
 
 
@@ -8,7 +11,7 @@ class FakeResponse:
 
     def raise_for_status(self):
         if self.status_code >= 400:
-            raise RuntimeError(f"HTTP {self.status_code}")
+            raise requests.exceptions.HTTPError(f"HTTP {self.status_code}")
 
     def json(self):
         return self._payload
@@ -36,9 +39,5 @@ def test_send_telegram_message_raises_on_http_error(monkeypatch):
         return FakeResponse({"ok": False}, status_code=400)
 
     monkeypatch.setattr(bot.requests, "post", fake_post)
-    raised = False
-    try:
+    with pytest.raises(requests.exceptions.HTTPError):
         bot.send_telegram_message("BOT_TOKEN", "12345", "Hello")
-    except RuntimeError:
-        raised = True
-    assert raised
