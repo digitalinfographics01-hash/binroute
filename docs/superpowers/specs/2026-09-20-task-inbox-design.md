@@ -82,9 +82,18 @@ these are not treated as mutually exclusive categories.
 - **Gmail OAuth**: `gmail-credentials.json` / `gmail-token.json` at the
   repo root, already authorized against `muhammad.zain@amalacademy.org`
   with `gmail.readonly` scope (currently used by
-  `scripts/archive/fetch-cascade-emails.js`). Reused as-is.
+  `scripts/archive/fetch-cascade-emails.js`). Reused as-is (copied
+  directly onto the VPS since these files are gitignored and don't travel
+  through `git pull`).
 - **PM2**: same background-daemon pattern as `scoring_daemon.py` /
   `binroute-router`.
+- **Hostinger VPS**: the tool runs on the same server already hosting
+  BinRoute (`/opt/binroute`), not on the user's local machine, so it's
+  always running independent of any local device being on.
+- **Nginx + Let's Encrypt subdomain**: same pattern as
+  `analytics.cswebform.cloud` / `binroute.cswebform.cloud` — the dashboard
+  is reverse-proxied at **`task-inbox.cswebform.cloud`** rather than only
+  reachable via localhost, so the user can check it from anywhere.
 
 ## New infrastructure needed
 
@@ -103,11 +112,13 @@ these are not treated as mutually exclusive categories.
 
 ## Architecture
 
-New project at `Automation/task-inbox/`, Python-based, PM2-managed. Two
+New project at `Automation/task-inbox/`, Python-based, PM2-managed,
+**deployed on the Hostinger VPS** (not the user's local machine). Two
 ingestion workers backfill + then live-sync into a shared SQLite
 database; each message is classified by Claude into zero or more
 categories; a resolver watches for replies; a reminder loop nudges on
-unresolved items; a local Flask dashboard reads it all.
+unresolved items; a Flask dashboard reads it all, reverse-proxied at
+`task-inbox.cswebform.cloud`.
 
 ```
 Telegram (Telethon: backfill 1mo, then live listener) ─┐
@@ -177,8 +188,9 @@ Gmail (backfill 1mo, then poll every ~3 min)           ─┘              │
     `last_1130_digest_sent_date` (dates, not timestamps, so each fires
     once per calendar day even across restarts).
 
-- **`dashboard.py`** — local Flask app (e.g. `localhost:5055`) with the
-  3 tabs described above. Tabs 2/3 sort oldest-open-first and show
+- **`dashboard.py`** — Flask app (port 5055 on the VPS, reverse-proxied
+  via nginx at `task-inbox.cswebform.cloud` with Let's Encrypt SSL) with
+  the 3 tabs described above. Tabs 2/3 sort oldest-open-first and show
   increasing visual urgency (e.g. a badge/color that shifts the longer an
   item has been open) — purely visual/pull, independent of the push
   reminder timing above.
