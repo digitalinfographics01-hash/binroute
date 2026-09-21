@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 import db
 
@@ -100,7 +101,13 @@ def run_poll(service, conn, account_email):
     if cursor is None:
         run_backfill(service, conn, account_email, days=30)
         return
-    response = service.users().history().list(userId="me", startHistoryId=cursor).execute()
+    try:
+        response = service.users().history().list(userId="me", startHistoryId=cursor).execute()
+    except HttpError as error:
+        if error.resp.status == 404:
+            run_backfill(service, conn, account_email, days=30)
+            return
+        raise
     for record in response.get("history", []):
         for added in record.get("messagesAdded", []):
             _ingest_message(service, conn, added["message"]["id"], account_email)
