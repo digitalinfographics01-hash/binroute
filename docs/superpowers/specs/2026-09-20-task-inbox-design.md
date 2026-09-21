@@ -1,160 +1,197 @@
 # Task Inbox — Design Spec
 
-**Date:** 2026-09-20
+**Date:** 2026-09-20 (revised same day — scope expanded from single task list to full comms log + multi-category classification + reminders)
 **Status:** Approved, pending implementation plan
 
 ## Goal
 
-A personal tool that watches every Telegram message and one work Gmail
-inbox, detects messages where someone is waiting on a reply/action from
-the user, and surfaces those as a running "needs my reply" list — so
-nothing asked of the user gets missed or buried in scrollback.
+A personal tool that logs every Telegram message and every email in one
+work Gmail inbox in one place, classifies each one, and splits them into:
+a full searchable log, a "waiting on my reply" view, and an "asked to do
+something" view — so nothing asked of the user gets missed or buried
+across two separate apps and dozens of chats/threads. Unresolved items
+get progressively reminded to the user until handled.
 
 **Why:** the user currently has to manually track outstanding asks across
-Telegram group chats, Telegram DMs, and client emails. There's no single
-place to see "here's everything people are still waiting on me for."
+Telegram group chats, Telegram DMs, and client emails, with no single
+place to see everything, and no memory jog for the things that slip.
 
 ## Scope
 
-**In scope:**
-- Telegram: every chat the user is a member of — all groups and all 1-on-1
-  DMs. ("All group chats are work chats" — user confirmed, plus DMs since
-  clients may message directly.)
-- Gmail: `muhammad.zain@amalacademy.org` only — this is the client-facing
-  work inbox where task requests land.
-- Task = a message where someone appears to be waiting on a reply or
-  action from the user. Not a general "extract every action item"
-  system — the trigger is specifically "someone needs something from me."
-- Auto-resolution: once the user replies in the original Telegram chat or
-  Gmail thread, the task clears itself from the list — no manual
-  bookkeeping.
-- A simple local dashboard (own tool, not a third-party app) listing open
-  items, newest first, grouped by source, linking back to the original
-  chat/thread.
+**In scope — data sources:**
+- Telegram: every chat the user is a member of — all groups and all
+  1-on-1 DMs.
+- Gmail: `muhammad.zain@amalacademy.org` only — the client-facing work
+  inbox where task requests land.
+- **Backfill**: on first run, pull the last **1 month** of history from
+  both sources (not full lifetime history), so the tool isn't starting
+  from a blank slate.
+
+**In scope — dashboard, 3 tabs:**
+1. **All Messages** — a full, searchable log of every Telegram message and
+   every email from the work inbox, regardless of classification.
+2. **Waiting on my reply** — messages where someone appears to expect a
+   response/acknowledgment from the user.
+3. **Asked to do something** — messages where someone has requested an
+   action or deliverable from the user.
+
+A single message can appear in both tab 2 and tab 3 if it both expects a
+reply *and* asks for an action (e.g. "can you send me X by Friday?") —
+these are not treated as mutually exclusive categories.
+
+**In scope — resolution & reminders:**
+- **Auto-resolution**: once the user replies in the original Telegram
+  chat or Gmail thread, the item clears from tabs 2/3 automatically (it
+  stays visible in "All Messages" regardless — that tab is a log, not a
+  worklist).
+- **Reminders**: an item still open in tab 2 or 3 gets a repeat nudge,
+  on an **escalating** schedule — infrequent at first, more frequent the
+  longer it stays unresolved (see Reminder schedule below). Delivered via
+  **both** a Telegram message to the user AND increasing visual urgency
+  on the dashboard itself.
 
 **Explicitly out of scope (for this version):**
-- `digitalinfographics.01@gmail.com` (company email) — user confirmed
-  work email only, for now.
-- Syncing into a third-party task app (Notion/Todoist/Google Tasks) —
-  user wants their own simple list, not integration with another tool.
-- Proactive notifications/digests — this is a pull ("I go check it")
-  system, not a push one.
-- Any two-way action (replying, sending messages) — read-only extraction
-  and detection. The user still does all replying themselves, in
-  Telegram/Gmail directly.
+- `digitalinfographics.01@gmail.com` (company email).
+- Syncing into a third-party task app (Notion/Todoist/Google Tasks).
+- Any two-way action on the user's behalf (replying, sending messages to
+  other people) — read-only extraction, detection, and self-reminders
+  only. The user still does all real replying themselves.
 
 ## Existing infrastructure being reused
 
 - **Gmail OAuth**: `gmail-credentials.json` / `gmail-token.json` at the
-  repo root are already authorized against `muhammad.zain@amalacademy.org`
+  repo root, already authorized against `muhammad.zain@amalacademy.org`
   with `gmail.readonly` scope (currently used by
-  `scripts/archive/fetch-cascade-emails.js` for Sticky.io cascade CSV
-  pulls). This project reuses the same token — read-only access is
-  already sufficient, no new Gmail scope/consent needed.
-- **PM2**: the project already runs background daemons this way
-  (`scoring_daemon.py`, `binroute-router`). This tool follows the same
-  pattern rather than introducing a new process-management approach.
+  `scripts/archive/fetch-cascade-emails.js`). Reused as-is.
+- **PM2**: same background-daemon pattern as `scoring_daemon.py` /
+  `binroute-router`.
 
 ## New infrastructure needed
 
-- **Telegram user session**: requires a personal `api_id`/`api_hash` from
-  my.telegram.org (free, one-time) and a one-time phone-number + login-code
-  authorization (via Telethon). Must be a *user* session, not a bot — bots
-  cannot see full DM/group history or be silently present in chats the way
-  a logged-in user account can.
-- **Anthropic API key**: needed for the classification step (see below).
-  Separate from any Claude.ai/Claude Code subscription — created at
-  console.anthropic.com, billed pay-per-token. Goes into a local `.env`
-  file only, gitignored, never committed or shared in chat.
+- **Telegram user session**: `api_id`/`api_hash` from my.telegram.org +
+  one-time phone/code login via Telethon (must be a user session, not a
+  bot, to see full DM/group history and to send reminder messages as the
+  user rather than as a separate bot the user'd have to go set up and
+  message first).
+- **Anthropic API key**: from console.anthropic.com, for the
+  classification step. Goes in a local `.env`, gitignored, never shared
+  in chat.
 
 ## Architecture
 
-New project at `Automation/task-inbox/`, Python-based, running as a
-PM2-managed background service. Two live ingestion workers feed a shared
-local SQLite database; each new message is classified by Claude; a small
-local Flask dashboard reads the database and shows what's still open.
+New project at `Automation/task-inbox/`, Python-based, PM2-managed. Two
+ingestion workers backfill + then live-sync into a shared SQLite
+database; each message is classified by Claude into zero or more
+categories; a resolver watches for replies; a reminder loop nudges on
+unresolved items; a local Flask dashboard reads it all.
 
 ```
-Telegram (Telethon, live listener) ─┐
-                                     ├─► SQLite (messages, tasks, sync cursors)
-Gmail (poll every ~3 min)          ─┘              │
-                                                    ▼
-                                          classifier.py (Claude call)
-                                                    │
-                                                    ▼
-                                          dashboard.py (localhost)
+Telegram (Telethon: backfill 1mo, then live listener) ─┐
+                                                         ├─► SQLite (messages, tasks, sync cursors)
+Gmail (backfill 1mo, then poll every ~3 min)           ─┘              │
+                                                                        ▼
+                                                              classifier.py (Claude call)
+                                                                        │
+                                            ┌───────────────────────────┼───────────────────────┐
+                                            ▼                           ▼                        ▼
+                                    dashboard.py (localhost)     resolver.py (marks done)   reminder.py (nudges)
+                                                                                                    │
+                                                                                                    ▼
+                                                                                    Telegram message to self
 ```
 
 ## Components
 
-- **`telegram_worker.py`** — Telethon client logged in as the user's own
-  account. Uses a live event listener (`events.NewMessage`) across all
-  chats rather than polling, since a persistent session makes this the
-  cheaper/simpler option and gives near-real-time capture. Writes every
-  new message (sender, chat, text, timestamp, deep-link) to `messages`.
+- **`telegram_worker.py`** — Telethon client, backfills the last 1 month
+  across all dialogs on first run, then a live event listener
+  (`events.NewMessage`) going forward. Writes every message to `messages`.
 
-- **`gmail_worker.py`** — polls the Gmail History API on an interval
-  (~3 min) for new messages in `muhammad.zain@amalacademy.org` since the
-  last synced `historyId`. Writes new messages to `messages`.
+- **`gmail_worker.py`** — backfills the last 1 month via the Gmail API
+  search (`after:` date filter) on first run, then polls the History API
+  every ~3 min going forward. Writes every message to `messages`.
 
-- **`classifier.py`** — shared function called for every new row in
-  `messages`. Sends the message text + minimal context to Claude (a
-  fast/cheap model) with a single job: decide if this is a message where
-  the sender is waiting on a reply/action from the user, and if so,
-  produce a short task description. Non-tasks are marked classified and
-  discarded (not shown, but not re-processed either).
+- **`classifier.py`** — called for every new/backfilled row in
+  `messages`. Sends the message text + minimal thread context to Claude
+  (a fast/cheap model), which returns independent yes/no judgments for
+  each category: *waiting on reply* and *asked to do something* (both,
+  either, or neither can be true), plus a short task description for
+  whichever category(ies) applied.
 
-- **`resolver.py`** — periodic pass that checks, for every open task,
-  whether the user has sent a subsequent message in that same Telegram
-  chat, or a reply in that Gmail thread. If so, marks the task `resolved`.
+- **`resolver.py`** — periodic pass: for every open item in tab 2 or 3,
+  checks whether the user has since sent a message in that Telegram chat
+  or a reply in that Gmail thread. If so, marks it `resolved`.
 
-- **`db.py`** — SQLite schema:
+- **`reminder.py`** — periodic pass (e.g. every 30 min): for every open
+  item, checks its age and `last_reminded_at` against the escalating
+  schedule below. If due, sends a Telegram message to the user (to their
+  own Saved Messages, via the same Telethon session — no separate bot
+  needed) naming the specific item and linking back to it, and updates
+  `last_reminded_at`. Respects quiet hours (no reminders ~11pm-7am local)
+  so it doesn't page the user overnight.
+
+- **`db.py`** — SQLite:
   - `messages`: id, source (telegram/gmail), chat/thread id, sender,
-    text, timestamp, link, classified (bool)
-  - `tasks`: id, message_id (FK), task_text, status (open/resolved),
-    created_at, resolved_at
+    text, timestamp, link, classified (bool) — the full log backing tab 1.
+  - `tasks`: id, message_id (FK), category (waiting_on_reply /
+    asked_of_me — a row per matched category, so a message with both gets
+    two rows), task_text, status (open/resolved), created_at,
+    resolved_at, last_reminded_at.
   - `sync_state`: per-chat (Telegram) / single-row (Gmail) cursor so a
-    restart doesn't reprocess history
+    restart doesn't reprocess history.
 
-- **`dashboard.py`** — local Flask app (e.g. `localhost:5055`) listing
-  all `open` tasks, newest first, grouped by source, each linking directly
-  to the originating Telegram chat or Gmail thread.
+- **`dashboard.py`** — local Flask app (e.g. `localhost:5055`) with the
+  3 tabs described above. Tabs 2/3 sort oldest-open-first and show
+  increasing visual urgency (e.g. a badge/color that shifts as an item
+  ages) matching the reminder escalation tiers.
+
+## Reminder schedule (default, tunable)
+
+Age of unresolved item → reminder interval:
+- 0-24h: one reminder, at the 24h mark
+- 1-3 days: every 12h
+- 3+ days: every 4-6h
+
+Same tiers drive the dashboard's visual urgency so what's shown matches
+what's being nudged.
 
 ## Data flow
 
-New message arrives → stored raw in `messages` → `classifier.py` runs →
-if it's a task, a row is added to `tasks` (status `open`) → shown on the
-dashboard → user replies in the original chat/thread → `resolver.py`
-notices on its next pass → task marked `resolved` → disappears from the
-dashboard.
+New/backfilled message → stored raw in `messages` → classified → each
+matched category becomes a row in `tasks` (status `open`) → shown on the
+relevant dashboard tab(s) → user replies in the original chat/thread →
+`resolver.py` notices → marked `resolved` → clears from tabs 2/3 (stays
+in tab 1's log). If not resolved, `reminder.py` nudges on the escalating
+schedule until it is.
 
 ## Error handling
 
-- **Telegram session invalidated** (logged out elsewhere, etc.) — worker
-  logs the failure clearly; requires the same one-time re-auth flow as
-  initial setup. Does not silently stop without a visible error.
-- **Gmail token expiring** — refreshed automatically via the stored
-  refresh token; if the refresh itself fails, requires manual re-auth.
-- **Claude API errors/rate limits** — retried with backoff; a message
-  stays `classified = false` and is retried on the next pass rather than
-  being silently dropped or duplicated.
-- **Restarts are safe** — `sync_state` cursors and unique message IDs
-  mean a restart never reprocesses old history or double-creates tasks.
+- Telegram session invalidated → logged clearly, needs re-auth.
+- Gmail token expiring → auto-refreshed; manual re-auth only if refresh
+  itself fails.
+- Claude API errors/rate limits → retried with backoff; message retried
+  next pass, never silently dropped.
+- Restarts are safe — cursors + unique message IDs prevent
+  reprocessing/duplicates; reminder state (`last_reminded_at`) persists
+  across restarts so a restart doesn't reset escalation back to tier 1.
 
 ## Testing / verification plan
 
-- Manual pass: send a test message via Telegram ("can you get back to me
-  on X") and via email to the work inbox, confirm each appears on the
-  dashboard within one poll/listen cycle, then reply in the original
-  chat/thread and confirm it clears automatically.
-- A way to inspect messages the classifier marked as *not* a task (e.g. a
-  simple `--show-skipped` view or log), so the classification prompt can
-  be tuned early if it's missing real asks or over-flagging noise.
+- Send a test "can you get back to me on X" and a test "can you do X for
+  me" via both Telegram and email; confirm each lands in the correct
+  tab(s), confirm replying clears it, confirm an intentionally-ignored
+  test item gets reminded on schedule.
+- A way to inspect messages classified as neither category, to tune the
+  prompt early if it's missing real asks or over-flagging noise.
+- Confirm 1-month backfill doesn't re-surface/re-remind on things the
+  user already resolved before the tool ever ran (resolver should catch
+  same-thread replies that happened during the backfill window itself).
 
 ## Open items to confirm during implementation
 
-- Exact wording/strictness of the classification prompt will likely need
-  a tuning pass once real messages start flowing through it.
-- Telegram deep-link format for jumping straight to a specific message
-  (vs. just the chat) should be confirmed against what Telethon/Telegram
-  actually support.
+- Exact wording/strictness of the classification prompt will need a
+  tuning pass once real messages flow through it.
+- Telegram deep-link format for jumping to a specific message (vs. just
+  the chat) needs confirming against what Telethon/Telegram actually
+  support.
+- Reminder schedule tiers above are a starting default — adjust after
+  living with it a few days if it's too noisy or too sparse.
