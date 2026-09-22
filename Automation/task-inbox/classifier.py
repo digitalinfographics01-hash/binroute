@@ -49,7 +49,14 @@ def classify_message(client, text):
 
 
 def classify_and_store(client, conn, message_row):
-    result = classify_message(client, message_row["text"] or "")
+    text = (message_row["text"] or "").strip()
+    if not text:
+        # Nothing to classify (e.g. a photo/sticker-only message, or an
+        # email with no extractable plain-text body) - skip the API call
+        # entirely rather than sending empty content, which Anthropic rejects.
+        db.mark_classified(conn, message_row["id"])
+        return
+    result = classify_message(client, text)
     if result["waiting_on_reply"]:
         db.insert_task(conn, message_row["id"], "waiting_on_reply", result["task_text"])
     if result["asked_of_me"]:

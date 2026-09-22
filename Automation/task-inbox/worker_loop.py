@@ -21,7 +21,10 @@ POLL_SECONDS = 180
 
 def classify_pending(conn, anthropic_client):
     for message_row in db.get_unclassified_messages(conn):
-        classifier.classify_and_store(anthropic_client, conn, message_row)
+        try:
+            classifier.classify_and_store(anthropic_client, conn, message_row)
+        except Exception as error:
+            print(f"worker_loop: failed to classify message {message_row['id']}, will retry next cycle: {error}")
 
 
 def send_reminder(text):

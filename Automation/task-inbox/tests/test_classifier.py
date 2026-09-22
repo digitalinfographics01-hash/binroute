@@ -118,3 +118,49 @@ def test_classify_message_defaults_task_text_when_missing():
         "asked_of_me": False,
         "task_text": "",
     }
+
+
+def test_classify_and_store_skips_api_call_for_empty_text():
+    """A photo/sticker-only message or an email with no extractable plain text has
+    empty text - Anthropic rejects empty message content, so this must never
+    reach the API at all, just mark the message classified with no tasks."""
+    conn = db.get_connection(":memory:")
+    db.init_db(conn)
+    msg_id, _ = db.insert_message(
+        conn, "telegram", "ext-5", "chat-5", "alice", False,
+        "", "link5", "2026-09-20T09:00:00+00:00",
+    )
+    message_row = conn.execute("SELECT * FROM messages WHERE id = ?", (msg_id,)).fetchone()
+
+    class ExplodingMessages:
+        def create(self, **kwargs):
+            raise AssertionError("should never call the API for empty text")
+
+    class ExplodingClient:
+        def __init__(self):
+            self.messages = ExplodingMessages()
+
+    classifier.classify_and_store(ExplodingClient(), conn, message_row)
+    assert db.get_open_tasks(conn) == []
+    assert db.get_unclassified_messages(conn) == []
+
+
+def test_classify_and_store_skips_api_call_for_whitespace_only_text():
+    conn = db.get_connection(":memory:")
+    db.init_db(conn)
+    msg_id, _ = db.insert_message(
+        conn, "gmail", "ext-6", "thread-6", "bob@example.com", False,
+        "   \n  ", "link6", "2026-09-20T09:00:00+00:00",
+    )
+    message_row = conn.execute("SELECT * FROM messages WHERE id = ?", (msg_id,)).fetchone()
+
+    class ExplodingMessages:
+        def create(self, **kwargs):
+            raise AssertionError("should never call the API for whitespace-only text")
+
+    class ExplodingClient:
+        def __init__(self):
+            self.messages = ExplodingMessages()
+
+    classifier.classify_and_store(ExplodingClient(), conn, message_row)
+    assert db.get_unclassified_messages(conn) == []
