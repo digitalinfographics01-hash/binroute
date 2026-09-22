@@ -1,4 +1,5 @@
 import json
+import re
 
 import db
 
@@ -24,6 +25,15 @@ Respond with ONLY a JSON object, no other text, in this exact shape:
 """
 
 
+def _extract_json_object(raw):
+    # The model is asked for bare JSON but real responses sometimes wrap it
+    # in a markdown code fence (```json ... ```) anyway - pull out the first
+    # {...} block regardless of what surrounds it rather than assuming the
+    # whole response is valid JSON on its own.
+    match = re.search(r"\{.*\}", raw, re.DOTALL)
+    return match.group(0) if match else raw
+
+
 def classify_message(client, text):
     response = client.messages.create(
         model=MODEL,
@@ -33,7 +43,7 @@ def classify_message(client, text):
     )
     raw = response.content[0].text.strip()
     try:
-        result = json.loads(raw)
+        result = json.loads(_extract_json_object(raw))
     except json.JSONDecodeError:
         # If Claude returns malformed JSON, treat as "no task found"
         return {

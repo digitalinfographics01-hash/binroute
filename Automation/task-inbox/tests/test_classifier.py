@@ -109,6 +109,31 @@ def test_classify_message_returns_no_task_on_malformed_json():
     }
 
 
+def test_classify_message_strips_markdown_code_fence():
+    """The real model wraps its JSON response in a ```json ... ``` fence despite
+    being told to return bare JSON - this must still parse correctly rather
+    than silently falling back to 'no task found' on every real call."""
+    fenced = '```json\n{"waiting_on_reply": true, "asked_of_me": true, "task_text": "Send the Q3 report by Friday"}\n```'
+    client = FakeBrokenClient(fenced)
+    result = classifier.classify_message(client, "Can you send me the Q3 report by Friday?")
+    assert result == {
+        "waiting_on_reply": True,
+        "asked_of_me": True,
+        "task_text": "Send the Q3 report by Friday",
+    }
+
+
+def test_classify_message_strips_plain_code_fence_without_language_tag():
+    fenced = '```\n{"waiting_on_reply": false, "asked_of_me": true, "task_text": "Fix the bug"}\n```'
+    client = FakeBrokenClient(fenced)
+    result = classifier.classify_message(client, "Can you fix this?")
+    assert result == {
+        "waiting_on_reply": False,
+        "asked_of_me": True,
+        "task_text": "Fix the bug",
+    }
+
+
 def test_classify_message_defaults_task_text_when_missing():
     """When the response JSON is missing the task_text key, it should default to empty string."""
     client = FakeClient({"waiting_on_reply": True, "asked_of_me": False})
