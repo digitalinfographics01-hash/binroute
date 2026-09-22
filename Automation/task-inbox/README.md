@@ -31,7 +31,7 @@ until each item is actually handled.
 ## What was built
 
 12 small, single-purpose Python modules, each with its own tests
-(42 tests total, all passing):
+(46 tests total, all passing):
 
 | File | Responsibility |
 |---|---|
@@ -62,15 +62,50 @@ independent of anyone's laptop being on.
       root cause never fully confirmed, worked eventually)
 - [x] Anthropic API key configured
 - [x] One-time Telegram login completed — logged in as the real account
-- [x] Telegram backfill (last 30 days, every chat) — **complete**
-- [ ] Gmail backfill (last 30 days) — in progress; hit and fixed a real
-      Gmail API rate-limit bug along the way (see `gmail_worker.py`'s
+- [x] Telegram backfill (last 30 days, every chat) — **complete**, 7733
+      total messages logged across Telegram + Gmail
+- [x] Gmail backfill (last 30 days) — **complete** (after fixing a real
+      Gmail API rate-limit bug along the way — see `gmail_worker.py`'s
       `_ingest_message` retry logic)
-- [ ] Start both processes under PM2 permanently
+- [x] **Critical classifier bug found and fixed** (2026-09-22): the real
+      model wraps its JSON response in a ```` ```json ``` ```` fence
+      despite the prompt saying bare JSON only. `json.loads()` failed on
+      every single real call, silently hit the "malformed JSON → no task"
+      fallback, and marked all 6075 classified messages as "no task found"
+      regardless of actual content — while still spending real API money.
+      Fixed in `classifier.py` (`_extract_json_object` pulls the `{...}`
+      block out regardless of surrounding fence/text) and verified against
+      a live API call. **All 6075 messages from that run need to be
+      reclassified — their stored classification is invalid.**
+- [ ] **Paused here, by design** (2026-09-22): the worker process is
+      stopped (not crashed) on the VPS inside the `taskinbox` tmux session.
+      Before reclassifying, build pre-filters to cut cost on the redo:
+        - Gmail: skip Claude entirely for anything carrying Gmail's own
+          `CATEGORY_PROMOTIONS` / `CATEGORY_SOCIAL` / `CATEGORY_UPDATES` /
+          `CATEGORY_FORUMS` labels (free signal, already computed by
+          Gmail, message still gets logged in "All Messages" either way)
+        - Telegram: skip trivial acknowledgments ("ok", "thanks", single
+          emoji, etc.)
+      Then reset `classified = 0` on all messages and let `classify_pending`
+      redo the batch through the fixed parser + new filters.
+- [ ] Start both processes under PM2 permanently (once reclassification
+      is done and verified)
 - [ ] Public dashboard at `task-inbox.cswebform.cloud` (nginx + SSL,
       matching the existing `analytics.cswebform.cloud` pattern)
 - [ ] Live smoke test (send a real test message/email, confirm it shows
       up and clears correctly)
+
+## To resume this work
+
+```bash
+ssh root@187.77.24.146          # key: ~/.ssh/id_ed25519
+tmux attach -t taskinbox        # worker process is stopped, not crashed
+cd /opt/binroute && git pull && cd Automation/task-inbox
+source venv/bin/activate
+```
+Build the pre-filters, reset `classified = 0` on all rows in
+`task_inbox.db`, then `python worker_loop.py` to redo classification
+through the fixed parser before starting it under PM2.
 
 ## Notable things learned building this
 
